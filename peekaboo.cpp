@@ -1,6 +1,7 @@
 #include "pin.H"
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 /* ================================================================== */
 // Global variables 
@@ -10,7 +11,6 @@ UINT64 insCount = 0;        //number of dynamically executed instructions
 UINT64 bblCount = 0;        //number of dynamically executed basic blocks
 UINT64 threadCount = 0;     //total number of threads, including main thread
 
-LEVEL_CORE::REGSET fullRegSet;
 
 std::ostream * out = &cerr;
 
@@ -27,10 +27,14 @@ KNOB<BOOL>   KnobCount(KNOB_MODE_WRITEONCE,  "pintool",
 // Data Structures
 /* ===================================================================== */
 
+REGSET fullRegSet;
+REGSET traceRegSet;
+
+vector<REG> traceRegs;
+
 struct InsnRecord
 {
     ADDRINT pc;
-    uint8_t rawbytes[16];
 
 };
 
@@ -175,14 +179,26 @@ int main(int argc, char *argv[])
     }
     
     // Get the full reg set for our architecture...
-    // fullRegSet = PIN_GetFullContextRegsSet();
     REGSET_AddAll(fullRegSet);
+    // initialize the registers we will be dumping for our trace
+    for (int reg = (int)REG_GR_BASE; reg <= (int)REG_GR_LAST; ++reg) traceRegs.push_back((REG)reg);
+    for (int reg = (int)REG_ST_BASE; reg <= (int)REG_ST_LAST; ++reg) traceRegs.push_back((REG)reg);
+    for (int reg = (int)REG_XMM_BASE; reg <= (int)REG_LastSupportedXmm(); ++reg) traceRegs.push_back((REG)reg);
+    // for eflags and eip, we'll upcast it to the full name, so for x64, it'll be rip and x32, eip.
+    traceRegs.push_back(REG_FullRegName(REG_EFLAGS));
+    traceRegs.push_back(REG_FullRegName(REG_EIP));
+    traceRegs.push_back(REG_FullRegName(REG_FPSW));
+
+    for (REG reg : traceRegs)
+    {
+	    REGSET_Insert(traceRegSet, reg);
+    }
 
     string fileName = KnobOutputFile.Value();
 
     if (!fileName.empty()) { out = new std::ofstream(fileName.c_str());}
 
-    INS_AddInstrumentFunction(Instruction, 0);
+    // INS_AddInstrumentFunction(Instruction, 0);
 
     if (KnobCount)
     {
@@ -203,9 +219,17 @@ int main(int argc, char *argv[])
         cerr << "See file " << KnobOutputFile.Value() << " for analysis results" << endl;
     }
     cerr <<  "===============================================" << endl;
-    cerr << "This application contains " << REGSET_PopCount(fullRegSet) << " registers..." << endl;
-    cerr << REGSET_StringList(fullRegSet) << endl;
+    cerr << "Recording " << REGSET_PopCount(traceRegSet) << " registers..." << endl;
+    cerr << REGSET_StringList(traceRegSet) << endl;
     cerr <<  "===============================================" << endl;
+    REG reg;
+    REGSET myregset;
+    REGSET_AddAll(myregset);
+    while ((reg = REGSET_PopNext(myregset)))
+    {
+        cerr << reg << ":" << REG_StringShort(reg) << endl;
+    }
+    cerr << REG_EIP << ":" << REG_FullRegName(REG_EIP) << endl;
 
     // Start the program, never returns
     PIN_StartProgram();
