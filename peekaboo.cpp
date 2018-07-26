@@ -10,7 +10,7 @@ UINT64 insCount = 0;        //number of dynamically executed instructions
 UINT64 bblCount = 0;        //number of dynamically executed basic blocks
 UINT64 threadCount = 0;     //total number of threads, including main thread
 
-REGSET fullRegSet = NULL;
+LEVEL_CORE::REGSET fullRegSet;
 
 std::ostream * out = &cerr;
 
@@ -23,14 +23,21 @@ KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,  "pintool",
 KNOB<BOOL>   KnobCount(KNOB_MODE_WRITEONCE,  "pintool",
     "count", "1", "count instructions, basic blocks and threads in the application");
 
+/* ===================================================================== */
+// Data Structures
+/* ===================================================================== */
+
+struct InsnRecord
+{
+    ADDRINT pc;
+    uint8_t rawbytes[16];
+
+};
 
 /* ===================================================================== */
 // Utilities
 /* ===================================================================== */
 
-/*!
- *  Print out help message.
- */
 INT32 Usage()
 {
     cerr << "This tool logs the execution trace of the application. " << endl <<
@@ -39,6 +46,20 @@ INT32 Usage()
     cerr << KNOB_BASE::StringKnobSummary() << endl;
 
     return -1;
+}
+
+string Val2Str(const void* value, unsigned int size)
+{
+    stringstream sstr;
+    sstr << hex;
+    const unsigned char* cval = (const unsigned char*)value;
+    // Traverse cval from end to beginning since the MSB is in the last block of cval.
+    while (size)
+    {
+        --size;
+        sstr << (unsigned int)cval[size];
+    }
+    return string("0x")+sstr.str();
 }
 
 /* ===================================================================== */
@@ -57,6 +78,25 @@ VOID CountBbl(UINT32 numInstInBbl)
     insCount += numInstInBbl;
 }
 
+VOID PrintRegVals(const CONTEXT *ctxt)
+{
+    PIN_REGISTER val;
+    static const UINT stRegSize = REG_Size(REG_ST_BASE);
+    for (int reg = (int)REG_GR_BASE; reg <= (int)REG_GR_LAST; ++reg)
+    {
+        // For the integer registers, it is safe to use ADDRINT. But make sure to pass a pointer to it.
+        PIN_GetContextRegval(ctxt, (REG)reg, reinterpret_cast<UINT8*>(&val));
+        cerr << REG_StringShort((REG)reg) << ": " << Val2Str(&val, stRegSize) << endl;
+    }
+    for (int reg = (int)REG_ST_BASE; reg <= (int)REG_ST_LAST; ++reg)
+    {
+        // For the x87 FPU stack registers, using PIN_REGISTER ensures a large enough buffer.
+        PIN_GetContextRegval(ctxt, (REG)reg, reinterpret_cast<UINT8*>(&val));
+        cerr << REG_StringShort((REG)reg) << ": " << Val2Str(&val, stRegSize) << endl;
+    }
+
+}
+
 /* ===================================================================== */
 // Instrumentation callbacks
 /* ===================================================================== */
@@ -69,6 +109,13 @@ VOID CountBbl(UINT32 numInstInBbl)
  * @param[in]   v        value specified by the tool in the TRACE_AddInstrumentFunction
  *                       function call
  */
+
+VOID Instruction(INS ins, VOID *v)
+{
+    REGSET regset;
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PrintRegVals, IARG_CONST_CONTEXT, IARG_END);
+}
+
 VOID Trace(TRACE trace, VOID *v)
 {
     // Visit every basic block in the trace
@@ -127,9 +174,15 @@ int main(int argc, char *argv[])
         return Usage();
     }
     
+    // Get the full reg set for our architecture...
+    // fullRegSet = PIN_GetFullContextRegsSet();
+    REGSET_AddAll(fullRegSet);
+
     string fileName = KnobOutputFile.Value();
 
     if (!fileName.empty()) { out = new std::ofstream(fileName.c_str());}
+
+    INS_AddInstrumentFunction(Instruction, 0);
 
     if (KnobCount)
     {
@@ -149,6 +202,9 @@ int main(int argc, char *argv[])
     {
         cerr << "See file " << KnobOutputFile.Value() << " for analysis results" << endl;
     }
+    cerr <<  "===============================================" << endl;
+    cerr << "This application contains " << REGSET_PopCount(fullRegSet) << " registers..." << endl;
+    cerr << REGSET_StringList(fullRegSet) << endl;
     cerr <<  "===============================================" << endl;
 
     // Start the program, never returns
