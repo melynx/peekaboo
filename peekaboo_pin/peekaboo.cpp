@@ -5,62 +5,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include "peekaboo.h"
 
 /* ===================================================================== */
 // Command line switches
 /* ===================================================================== */
-KNOB<string> KnobOutputDir(KNOB_MODE_WRITEONCE,  "pintool",
-	"outdir", "", "specify dir name for peekaboo output");
+KNOB<string> KnobOutputDir(KNOB_MODE_WRITEONCE,  "pintool", "outdir", "", "specify dir name for peekaboo output");
 
+KNOB<BOOL> KnobCount(KNOB_MODE_WRITEONCE,  "pintool", "count", "1", "count instructions, basic blocks and threads in the application");
 
-KNOB<BOOL>	 KnobCount(KNOB_MODE_WRITEONCE,  "pintool",
-	"count", "1", "count instructions, basic blocks and threads in the application");
-
-/* ===================================================================== */
-// Data Structures
-/* ===================================================================== */
-
-// InsnRecord only stores the pc, mem_id and insn_id
-// insn_id contains an id referring to the raw bytes stored in insn_rawbytes
-// mem_id contains an id referring to the memory record
-struct InsnRecord
-{
-	ADDRINT pc;
-	USIZE insn_size;
-	uint8_t rawbytes[16];
-	unsigned int mem_id;
-};
-
-struct MemRecord
-{
-	MEMORY_TYPE type;
-	ADDRINT ea[2];
-	UINT64 val[2];
-};
-
-/* ================================================================== */
-// Global variables 
-/* ================================================================== */
-
-UINT64 insCount = 0;		//number of dynamically executed instructions
-UINT64 bblCount = 0;		//number of dynamically executed basic blocks
-UINT64 threadCount = 0;		//total number of threads, including main thread
-UINT64 memCount = 0;
-
-std::ostream *out = &cerr;
-
-std::ostream *insn_trace;
-std::ostream *reg_entries;
-std::ostream *mem_entries;
-std::ostream *reg_struct_file;
-std::ostream *logfile;
-
-REGSET trace_regset;
-
-vector<REG> trace_regs;
-
-PIN_REGISTER *reg_struct = NULL;
-struct InsnRecord insn_record;
 
 /* ===================================================================== */
 // Utilities
