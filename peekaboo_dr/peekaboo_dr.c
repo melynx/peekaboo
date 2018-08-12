@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stddef.h> /* for offsetof */
 #include "dr_api.h"
 #include "drmgr.h"
@@ -19,7 +20,7 @@ typedef struct {
     insn_ref_t *buf_base;
     file_t log;
     FILE *logf;
-    uint64 num_refs;
+    uint64_t num_refs;
 } per_thread_t;
 
 static client_id_t client_id;
@@ -46,9 +47,37 @@ static void flush_data(void *drcontext)
 	for (insn_ref = (insn_ref_t *)data->buf_base; insn_ref < buf_ptr; insn_ref++)
 	{
 		fprintf(data->logf, PIFX ",%s\n", (ptr_uint_t)insn_ref->pc, decode_opcode_name(insn_ref->opcode));
+		// fprintf(data->logf, PIFX ",%d\n", (ptr_uint_t)insn_ref->pc, (insn_ref->opcode));
 		data->num_refs++;
 	}
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;
+}
+
+static void clean_call(void)
+{
+	void *drcontext = dr_get_current_drcontext();
+	flush_data(drcontext);
+}
+
+static void insert_load_buf_ptr(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr)
+{
+	dr_insert_read_raw_tls(drcontext, ilist, where, tls_seg, tls_offs + INSTRACE_TLS_OFFS_BUF_PTR, reg_ptr);
+}
+
+static void insert_update_buf_ptr(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, int adjust)
+{
+	instr_t *add_offset = XINST_CREATE_add(drcontext, opnd_create_reg(reg_ptr), OPND_CREATE_INT16(adjust));
+	instrlist_meta_preinsert(ilist, where, add_offset);
+	dr_insert_write_raw_tls(drcontext, ilist, where, tls_seg, tls_offs + INSTRACE_TLS_OFFS_BUF_PTR, reg_ptr);
+}
+
+static void insert_save_opcode(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t base, reg_id_t scratch, int opcode)
+{
+	scratch = reg_resize_to_opsz(scratch, OPSZ_2);
+	instr_t *load_opcode = XINST_CREATE_load_int(drcontext, opnd_create_reg(scratch), OPND_CREATE_INT16(opcode));
+	instrlist_meta_preinsert(ilist, where, load_opcode);
+	instr_t *store_opcode = XINST_CREATE_store_2bytes(drcontext, OPND_CREATE_MEM16(base, offsetof(insn_ref_t, opcode)), opnd_create_reg(scratch));
+	instrlist_meta_preinsert(ilist, where, store_opcode);
 }
 
 static void insert_save_pc(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t base, reg_id_t scratch, app_pc pc)
@@ -62,7 +91,7 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
 	reg_id_t reg_ptr, reg_tmp;
 	if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_ptr) != DRREG_SUCCESS ||
-	    drreg_reserve_register(drcontext, ilist, where, NULL, ^reg_tmp) != DRREG_SUCCESS)
+	    drreg_reserve_register(drcontext, ilist, where, NULL, &reg_tmp) != DRREG_SUCCESS)
 	{
 		DR_ASSERT(false);
 		return;
@@ -82,7 +111,7 @@ static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrli
 		                             bool for_trace, bool translating, void *user_data)
 {
 	drmgr_disable_auto_predication(drcontext, bb);
-	if (!instr_is_app(instr)) return DR_EMIT_DEFAULT;
+	if (!instr_is_app(insn)) return DR_EMIT_DEFAULT;
 
 	instrument_insn(drcontext, bb, insn);
 
@@ -119,7 +148,7 @@ static void event_thread_exit(void *drcontext)
 	num_refs += data->num_refs;
 	dr_mutex_unlock(mutex);
 	fclose(data->logf);
-	close_file(data->log);
+	file_close(data->log);
 	dr_raw_mem_free(data->buf_base, MEM_BUF_SIZE);
 	dr_thread_free(drcontext, data, sizeof(per_thread_t));
 }
@@ -144,14 +173,14 @@ static void event_exit(void)
 DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 {
 	drreg_options_t ops = {sizeof(ops), 3, false};
-	dr_set_client_name("peekaboo DynamoRIO tracer");
+	dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
 	drmgr_init();
 	drreg_init(&ops);
 
 	dr_register_exit_event(event_exit);
-	dr_register_thread_init_event(event_thread_init);
-	dr_register_thread_exit_event(event_thread_exit);
+	drmgr_register_thread_init_event(event_thread_init);
+	drmgr_register_thread_exit_event(event_thread_exit);
 	drmgr_register_bb_instrumentation_event(NULL, event_app_instruction, NULL);
 
 	client_id = id;
