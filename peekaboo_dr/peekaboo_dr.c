@@ -4,6 +4,7 @@
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
+#include "drx.h"
 
 #include "peekaboo_utils.h"
 
@@ -12,16 +13,29 @@ typedef struct insn_ref {
 	int opcode;
 } insn_ref_t;
 
+typedef struct {
+	uint64_t pc;
+	uint32_t size;
+	uint8_t rawbytes[16];
+} bytes_map_t ;
+
 #define MAX_NUM_INS_REFS 8192
 #define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
 
+#define MAX_NUM_BYTES_MAP 512
+#define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
+
 typedef struct {
-    byte *seg_base;
-    insn_ref_t *buf_base;
-    file_t log;
-    FILE *logf;
-    uint64_t num_refs;
+	byte *seg_base;
+	insn_ref_t *buf_base;
+	file_t log;
+	FILE *logf;
+	file_t bytes;
+	FILE *bytesf;
+	uint64_t num_refs;
 } per_thread_t;
+
+
 
 static client_id_t client_id;
 static void *mutex;     /* for multithread support */
@@ -38,6 +52,8 @@ static int tls_idx;
 #define TLS_SLOT(tls_base, enum_val) (void **)((byte *)(tls_base) + tls_offs + (enum_val))
 #define CUR_BUF_PTR(tls_base) *(insn_ref_t **)TLS_SLOT(tls_base, INSTRACE_TLS_OFFS_BUF_PTR)
 
+static drx_buf_t *bytes_map_buf;
+
 static void flush_data(void *drcontext)
 {
 	per_thread_t *data;
@@ -51,6 +67,14 @@ static void flush_data(void *drcontext)
 		data->num_refs++;
 	}
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;
+}
+
+static void flush_map(void *drcontext, void *buf_base, size_t size)
+{
+	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
+	size_t count = size / sizeof(bytes_map_t);
+	DR_ASSERT(size % sizeof(bytes_map_t) == 0);
+	fwrite(buf_base, sizeof(bytes_map_t), count, data->bytesf);
 }
 
 static void clean_call(void)
@@ -97,14 +121,47 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 		return;
 	}
 
+	int insn_len = instr_length(drcontext, where);
+
+
 	insert_load_buf_ptr(drcontext, ilist, where, reg_ptr);
 	insert_save_pc(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_app_pc(where));
 	insert_save_opcode(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_opcode(where));
+	//insert_save_rawbytes(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_opcode(where));
 	insert_update_buf_ptr(drcontext, ilist, where, reg_ptr, sizeof(insn_ref_t));
 
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
 	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS)
 		DR_ASSERT(false);
+}
+
+
+static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, bool for_trace, bool translating, void **user_data)
+{
+	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
+	bytes_map_t bytes_map[MAX_NUM_BYTES_MAP];
+	uint idx;
+	instr_t *insn;
+
+	for (insn = instrlist_first_app(bb), idx=0; insn && idx < MAX_NUM_BYTES_MAP; insn=instr_get_next_app(insn), idx++)
+	{
+		uint32_t length = instr_length(drcontext, insn);
+		DR_ASSERT(length <= 16);
+		bytes_map[idx].pc = (uint64_t)instr_get_app_pc(insn);
+		bytes_map[idx].size = length;
+		for (int x=0; x<length; x++)
+		{
+			bytes_map[idx].rawbytes[x] = instr_get_raw_byte(insn, x);
+		}
+	}
+
+	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->bytesf);
+	printf("Written %d byte map into file...\n", idx);
+
+	// disassemble_with_info(drcontext, instr_get_app_pc(insn), data->disasm, true, true);
+	// instrlist_disassemble(drcontext, tag, bb, data->disasm);
+
+	return DR_EMIT_DEFAULT;
 }
 
 static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrlist_t *bb, instr_t *insn, 
@@ -134,8 +191,10 @@ static void event_thread_init(void *drcontext)
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;	
 
 	data->num_refs = 0;
-	data->log = file_open(client_id, drcontext, NULL, "peekaboo", DR_FILE_ALLOW_LARGE);
+	data->log = file_open(client_id, drcontext, NULL, "trace", DR_FILE_ALLOW_LARGE);
 	data->logf = fdopen(data->log, "w");
+	data->bytes = file_open(client_id, drcontext, NULL, "bytes", DR_FILE_ALLOW_LARGE);
+	data->bytesf = fdopen(data->bytes, "w");
 	fprintf(data->logf, "Format: <instr address>,<opcode>\n");
 }
 
@@ -167,6 +226,9 @@ static void event_exit(void)
 
 	dr_mutex_destroy(mutex);
 	drmgr_exit();
+
+	drx_buf_free(bytes_map_buf);
+	drx_exit();
 }
 
 
@@ -175,18 +237,22 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drreg_options_t ops = {sizeof(ops), 3, false};
 	dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
-	drmgr_init();
 	drreg_init(&ops);
+	drmgr_init();
+	drx_init();
 
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
-	drmgr_register_bb_instrumentation_event(NULL, event_app_instruction, NULL);
+	drmgr_register_bb_instrumentation_event(bb_rawbytes, event_app_instruction, NULL);
 
 	client_id = id;
 	mutex = dr_mutex_create();
 
 	tls_idx = drmgr_register_tls_field();
+
 	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
+	bytes_map_buf = drx_buf_create_trace_buffer(MAX_BYTES_MAP_SIZE, flush_map);
 	dr_log(NULL, DR_LOG_ALL, 11, "Client 'peekaboo' initializing\n");
+	printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
 }
