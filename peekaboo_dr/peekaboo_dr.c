@@ -8,6 +8,27 @@
 
 #include "peekaboo_utils.h"
 
+enum {
+	REG_RDI,
+	REG_RSI,
+	REG_RSP,
+	REG_RBX,
+	REG_RDX,
+	REG_RCX,
+	REG_RAX,
+	R8,
+	R9,
+	R10,
+	R11,
+	R12,
+	R13,
+	R14,
+	R15,
+	RFLAGS,
+	RIP,
+	TOTAL_GPR_REGS,
+};
+
 typedef struct insn_ref {
 	uint64_t pc;
 	int opcode;
@@ -19,11 +40,20 @@ typedef struct {
 	uint8_t rawbytes[16];
 } bytes_map_t ;
 
+typedef struct {
+	uint64_t gpr[TOTAL_GPR_REGS];
+	uint64_t ymm[NUM_SIMD_SLOTS];
+} regfile_ref_t;
+
 #define MAX_NUM_INS_REFS 8192
 #define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
 
+#define MAX_NUM_REG_REFS 8192
+#define REG_BUF_SIZE (sizeof(regfile_ref_t) * MAX_NUM_REG_REFS)
+
 #define MAX_NUM_BYTES_MAP 512
 #define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
+
 
 typedef struct {
 	byte *seg_base;
@@ -34,8 +64,6 @@ typedef struct {
 	FILE *bytesf;
 	uint64_t num_refs;
 } per_thread_t;
-
-
 
 static client_id_t client_id;
 static void *mutex;     /* for multithread support */
@@ -53,6 +81,7 @@ static int tls_idx;
 #define CUR_BUF_PTR(tls_base) *(insn_ref_t **)TLS_SLOT(tls_base, INSTRACE_TLS_OFFS_BUF_PTR)
 
 static drx_buf_t *bytes_map_buf;
+static drx_buf_t *regfile_buf;
 
 static void flush_data(void *drcontext)
 {
@@ -67,6 +96,10 @@ static void flush_data(void *drcontext)
 		data->num_refs++;
 	}
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;
+}
+
+static void flush_regfile(void *drcontext, void *buf_base, size_t size)
+{
 }
 
 static void flush_map(void *drcontext, void *buf_base, size_t size)
@@ -241,6 +274,10 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drmgr_init();
 	drx_init();
 
+	printf("sizeof reg_t:%d\n", sizeof(reg_t));
+	printf("sizeof dr_mcontext_t:%d\n", sizeof(dr_mcontext_t));
+	return ;
+
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
@@ -252,7 +289,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	tls_idx = drmgr_register_tls_field();
 
 	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
-	bytes_map_buf = drx_buf_create_trace_buffer(MAX_BYTES_MAP_SIZE, flush_map);
+	regfile_buf = drx_buf_create_trace_buffer(MAX_BYTES_MAP_SIZE, flush_map);
 	dr_log(NULL, DR_LOG_ALL, 11, "Client 'peekaboo' initializing\n");
 	printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
 }
