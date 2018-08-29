@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h> /* for offsetof */
+
+#include "dr_frontend.h"
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
@@ -30,6 +32,13 @@ enum {
 	TOTAL_GPR_REGS,
 };
 
+typedef union {
+	uint64_t u64[4];
+	uint32_t u32[8];
+	uint16_t u16[16];
+	uint8_t u8[32];
+} uint256_t;
+
 typedef struct insn_ref {
 	uint64_t pc;
 	int opcode;
@@ -43,7 +52,7 @@ typedef struct {
 
 typedef struct {
 	uint64_t gpr[TOTAL_GPR_REGS];
-	uint64_t ymm[NUM_SIMD_SLOTS];
+	uint256_t ymm[NUM_SIMD_SLOTS];
 } regfile_ref_t;
 
 #define MAX_NUM_INS_REFS 8192
@@ -54,7 +63,6 @@ typedef struct {
 
 #define MAX_NUM_BYTES_MAP 512
 #define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
-
 
 typedef struct {
 	byte *seg_base;

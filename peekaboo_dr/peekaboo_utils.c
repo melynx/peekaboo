@@ -4,6 +4,7 @@
 
 #include "peekaboo_utils.h"
 #include "drx.h"
+#include "dr_frontend.h"
 
 file_t file_open(client_id_t id, void *drcontext, const char *path, const char *name, uint32_t flags)
 {
@@ -39,6 +40,28 @@ file_t file_open(client_id_t id, void *drcontext, const char *path, const char *
 		DR_ASSERT(false);
 	}
 	return log;
+}
+
+bool create_trace_file(client_id_t id, void *drcontext, const char *path, const char *name, uint32_t flags)
+{
+	file_t insnfile;
+	file_t bytesfile;
+	file_t regfile;
+	file_t memfile;
+	bool result;
+	char buf[MAX_PATH];
+	char cur_dir[MAX_PATH];
+
+	dr_get_current_directory(buf, MAX_PATH);
+	path = (path == NULL) ? dr_get_current() : path;
+	drfront_dir_exists(buf, &result);
+
+	if (!result)
+	{
+		drx_open_unique_appid_dir(cur_dir, id, NULL, NULL, buf, MAX_PATH);
+	}
+
+	return true;
 }
 
 void file_close(file_t log)
