@@ -2,12 +2,12 @@
 #include <stdint.h>
 #include <stddef.h> /* for offsetof */
 
-#include "dr_frontend.h"
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
 #include "drx.h"
 
+#include "libpeekaboo.h"
 #include "peekaboo_utils.h"
 
 enum {
@@ -67,12 +67,7 @@ typedef struct {
 typedef struct {
 	byte *seg_base;
 	insn_ref_t *buf_base;
-	file_t log;
-	FILE *logf;
-	file_t bytes;
-	FILE *bytesf;
-	file_t regfile;
-	FILE *regfilef;
+	peekaboo_trace_t peek_trace;
 	uint64_t num_refs;
 } per_thread_t;
 
@@ -102,7 +97,7 @@ static void flush_data(void *drcontext)
 	buf_ptr = CUR_BUF_PTR(data->seg_base);
 	for (insn_ref = (insn_ref_t *)data->buf_base; insn_ref < buf_ptr; insn_ref++)
 	{
-		fprintf(data->logf, PIFX ",%s\n", (ptr_uint_t)insn_ref->pc, decode_opcode_name(insn_ref->opcode));
+		fprintf(data->peek_trace.insn_trace, PIFX ",%s\n", (ptr_uint_t)insn_ref->pc, decode_opcode_name(insn_ref->opcode));
 		// fprintf(data->logf, PIFX ",%d\n", (ptr_uint_t)insn_ref->pc, (insn_ref->opcode));
 		data->num_refs++;
 	}
@@ -114,7 +109,7 @@ static void flush_regfile(void *drcontext, void *buf_base, size_t size)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(regfile_ref_t);
 	DR_ASSERT(size % sizeof(regfile_ref_t) == 0);
-	fwrite(buf_base, sizeof(regfile_ref_t), count, data->regfilef);
+	fwrite(buf_base, sizeof(regfile_ref_t), count, data->peek_trace.regfile);
 	drx_buf_set_buffer_ptr(drcontext, regfile_buf, buf_base);
 }
 
@@ -126,7 +121,7 @@ static void flush_regfile_manual(void *drcontext)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(regfile_ref_t);
 	DR_ASSERT(size % sizeof(regfile_ref_t) == 0);
-	fwrite(buf_base, sizeof(regfile_ref_t), count, data->regfilef);
+	fwrite(buf_base, sizeof(regfile_ref_t), count, data->peek_trace.regfile);
 	drx_buf_set_buffer_ptr(drcontext, regfile_buf, buf_base);
 }
 
@@ -135,7 +130,7 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(bytes_map_t);
 	DR_ASSERT(size % sizeof(bytes_map_t) == 0);
-	fwrite(buf_base, sizeof(bytes_map_t), count, data->bytesf);
+	fwrite(buf_base, sizeof(bytes_map_t), count, data->peek_trace.bytes_map);
 }
 
 static void clean_call(void)
@@ -269,7 +264,7 @@ static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, 
 		}
 	}
 
-	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->bytesf);
+	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace.bytes_map);
 	// printf("Written %d byte map into file...\n", idx);
 
 	// disassemble_with_info(drcontext, instr_get_app_pc(insn), data->disasm, true, true);
@@ -294,6 +289,7 @@ static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrli
 
 static void event_thread_init(void *drcontext)
 {
+	char buf[256];
 	per_thread_t *data = dr_thread_alloc(drcontext, sizeof(per_thread_t));
 	DR_ASSERT(data != NULL);
 	drmgr_set_tls_field(drcontext, tls_idx, data);
@@ -304,14 +300,21 @@ static void event_thread_init(void *drcontext)
 
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;	
 
+	int pid = dr_get_process_id();
+	int tid = dr_get_thread_id(drcontext);
+	snprintf(buf, 256, "peekaboo-%d-%d", pid, tid);
+
 	data->num_refs = 0;
+	create_trace(buf, &data->peek_trace);
+	/*
 	data->log = file_open(client_id, drcontext, NULL, "trace", DR_FILE_ALLOW_LARGE);
 	data->logf = fdopen(data->log, "w");
 	data->bytes = file_open(client_id, drcontext, NULL, "bytes", DR_FILE_ALLOW_LARGE);
 	data->bytesf = fdopen(data->bytes, "w");
 	data->regfile = file_open(client_id, drcontext, NULL, "regfile", DR_FILE_ALLOW_LARGE);
 	data->regfilef = fdopen(data->regfile, "w");
-	fprintf(data->logf, "Format: <instr address>,<opcode>\n");
+	*/
+	fprintf(data->peek_trace.insn_trace, "Format: <instr address>,<opcode>\n");
 }
 
 static void event_thread_exit(void *drcontext)
@@ -323,12 +326,7 @@ static void event_thread_exit(void *drcontext)
 	dr_mutex_lock(mutex);
 	num_refs += data->num_refs;
 	dr_mutex_unlock(mutex);
-	fclose(data->logf);
-	file_close(data->log);
-	fclose(data->bytesf);
-	file_close(data->bytes);
-	fclose(data->regfilef);
-	file_close(data->regfile);
+	close_trace(&data->peek_trace);
 	dr_raw_mem_free(data->buf_base, MEM_BUF_SIZE);
 	dr_thread_free(drcontext, data, sizeof(per_thread_t));
 }
