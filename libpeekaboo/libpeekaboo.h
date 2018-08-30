@@ -14,3 +14,4 @@ typedef struct {
 
 int create_folder(char *name, char *output, uint32_t max_size);
 int create_trace(char *name, peekaboo_trace_t *trace);
+int close_trace(peekaboo_trace_t *trace);

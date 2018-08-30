@@ -57,6 +57,16 @@ int create_trace_file(char *dir_path, char *filename, int size, FILE **output)
 	return 0;
 }
 
+int close_trace(peekaboo_trace_t *trace)
+{
+	fclose(trace->insn_trace);
+	fclose(trace->bytes_map);
+	fclose(trace->regfile);
+	fclose(trace->memfile);
+	fclose(trace->metafile);
+	return 0;
+}
+
 int create_trace(char *name, peekaboo_trace_t *trace)
 {
 	char dir_path[MAX_PATH];
