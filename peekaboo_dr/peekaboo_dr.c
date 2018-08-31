@@ -174,7 +174,7 @@ static void save_regfile(void)
 
 static void insert_save_regfile(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
-	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
+	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, true, 0);
 }
 
 static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)

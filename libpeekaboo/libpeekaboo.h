@@ -12,6 +12,11 @@ typedef struct {
 	FILE *metafile;
 } peekaboo_trace_t;
 
+typedef struct {
+	uint32_t arch;
+	uint32_t version;
+} metadata_hdr_t;
+
 int create_folder(char *name, char *output, uint32_t max_size);
 int create_trace(char *name, peekaboo_trace_t *trace);
 int close_trace(peekaboo_trace_t *trace);
