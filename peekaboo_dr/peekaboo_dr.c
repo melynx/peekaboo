@@ -1,6 +1,8 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h> /* for offsetof */
+#include <assert.h>
 
 #include "dr_api.h"
 #include "drmgr.h"
@@ -10,38 +12,11 @@
 #include "libpeekaboo.h"
 #include "peekaboo_utils.h"
 
-enum {
-	REG_RDI,
-	REG_RSI,
-	REG_RSP,
-	REG_RBP,
-	REG_RBX,
-	REG_RDX,
-	REG_RCX,
-	REG_RAX,
-	REG_R8,
-	REG_R9,
-	REG_R10,
-	REG_R11,
-	REG_R12,
-	REG_R13,
-	REG_R14,
-	REG_R15,
-	REG_RFLAGS,
-	REG_RIP,
-	TOTAL_GPR_REGS,
-};
-
-typedef union {
-	uint64_t u64[4];
-	uint32_t u32[8];
-	uint16_t u16[16];
-	uint8_t u8[32];
-} uint256_t;
+#include "arch/amd64.h"
+typedef regfile_amd64_t regfile_ref_t;
 
 typedef struct insn_ref {
 	uint64_t pc;
-	int opcode;
 } insn_ref_t;
 
 typedef struct {
@@ -50,10 +25,6 @@ typedef struct {
 	uint8_t rawbytes[16];
 } bytes_map_t ;
 
-typedef struct {
-	uint64_t gpr[TOTAL_GPR_REGS];
-	uint256_t ymm[NUM_SIMD_SLOTS];
-} regfile_ref_t;
 
 #define MAX_NUM_INS_REFS 8192
 #define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
@@ -92,15 +63,12 @@ static drx_buf_t *regfile_buf;
 static void flush_data(void *drcontext)
 {
 	per_thread_t *data;
-	insn_ref_t *insn_ref, *buf_ptr;
+	insn_ref_t *buf_ptr;
 	data = drmgr_get_tls_field(drcontext, tls_idx);
 	buf_ptr = CUR_BUF_PTR(data->seg_base);
-	for (insn_ref = (insn_ref_t *)data->buf_base; insn_ref < buf_ptr; insn_ref++)
-	{
-		fprintf(data->peek_trace.insn_trace, PIFX ",%s\n", (ptr_uint_t)insn_ref->pc, decode_opcode_name(insn_ref->opcode));
-		// fprintf(data->logf, PIFX ",%d\n", (ptr_uint_t)insn_ref->pc, (insn_ref->opcode));
-		data->num_refs++;
-	}
+	int num_insn = (buf_ptr - data->buf_base);
+	fwrite(data->buf_base, sizeof(insn_ref_t), num_insn, data->peek_trace.insn_trace);
+	data->num_refs += num_insn;
 	CUR_BUF_PTR(data->seg_base) = data->buf_base;
 }
 
@@ -151,15 +119,6 @@ static void insert_update_buf_ptr(void *drcontext, instrlist_t *ilist, instr_t *
 	dr_insert_write_raw_tls(drcontext, ilist, where, tls_seg, tls_offs + INSTRACE_TLS_OFFS_BUF_PTR, reg_ptr);
 }
 
-static void insert_save_opcode(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t base, reg_id_t scratch, int opcode)
-{
-	scratch = reg_resize_to_opsz(scratch, OPSZ_2);
-	instr_t *load_opcode = XINST_CREATE_load_int(drcontext, opnd_create_reg(scratch), OPND_CREATE_INT16(opcode));
-	instrlist_meta_preinsert(ilist, where, load_opcode);
-	instr_t *store_opcode = XINST_CREATE_store_2bytes(drcontext, OPND_CREATE_MEM16(base, offsetof(insn_ref_t, opcode)), opnd_create_reg(scratch));
-	instrlist_meta_preinsert(ilist, where, store_opcode);
-}
-
 static void insert_save_pc(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t base, reg_id_t scratch, app_pc pc)
 {
 	instrlist_insert_mov_immed_ptrsz(drcontext, (ptr_int_t)pc, opnd_create_reg(scratch), ilist, where, NULL, NULL);
@@ -176,37 +135,35 @@ static void save_regfile(void)
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
 
+	regfile_ptr->gpr.reg_rdi = mc.rdi;
+	regfile_ptr->gpr.reg_rsi = mc.rsi;
+	regfile_ptr->gpr.reg_rsp = mc.rsp;
+	regfile_ptr->gpr.reg_rbp = mc.rbp;
+	regfile_ptr->gpr.reg_rbx = mc.rbx;
+	regfile_ptr->gpr.reg_rdx = mc.rdx;
+	regfile_ptr->gpr.reg_rcx = mc.rcx;
+	regfile_ptr->gpr.reg_rax = mc.rax;
+	regfile_ptr->gpr.reg_r8 = mc.r8;
+	regfile_ptr->gpr.reg_r9 = mc.r9;
+	regfile_ptr->gpr.reg_r10 = mc.r10;
+	regfile_ptr->gpr.reg_r11 = mc.r11;
+	regfile_ptr->gpr.reg_r12 = mc.r12;
+	regfile_ptr->gpr.reg_r13 = mc.r13;
+	regfile_ptr->gpr.reg_r14 = mc.r14;
+	regfile_ptr->gpr.reg_r15 = mc.r15;
+	regfile_ptr->gpr.reg_rflags = mc.rflags;
+	regfile_ptr->gpr.reg_rip = (uint64_t) mc.rip;
 
-	regfile_ptr->gpr[REG_RAX] = mc.rax;
-	regfile_ptr->gpr[REG_RBX] = mc.rbx;
-	regfile_ptr->gpr[REG_RCX] = mc.rcx;
-	regfile_ptr->gpr[REG_RDX] = mc.rdx;
-	regfile_ptr->gpr[REG_RSI] = mc.rsi;
-	regfile_ptr->gpr[REG_RDI] = mc.rdi;
-	regfile_ptr->gpr[REG_RBP] = mc.rbp;
-	regfile_ptr->gpr[REG_RSP] = mc.rsp;
-	regfile_ptr->gpr[REG_R8] = mc.r8;
-	regfile_ptr->gpr[REG_R9] = mc.r9;
-	regfile_ptr->gpr[REG_R10] = mc.r10;
-	regfile_ptr->gpr[REG_R11] = mc.r11;
-	regfile_ptr->gpr[REG_R12] = mc.r12;
-	regfile_ptr->gpr[REG_R13] = mc.r13;
-	regfile_ptr->gpr[REG_R14] = mc.r14;
-	regfile_ptr->gpr[REG_R15] = mc.r15;
-	regfile_ptr->gpr[REG_RFLAGS] = mc.rflags;
-	//regfile_ptr->gpr[REG_RIP] = (uint64_t)mc.rip;
+	// here, we cast the simd structure into an array of uint256_t
+	// TODO: Convert this to a single memcpy for performance
+	UINT256_T *dst_ptr = (UINT256_T *)&regfile_ptr->simd;
+	for (int x=0; x<15; x++)
+		memcpy(&dst_ptr[x], &mc.ymm[x], sizeof(UINT256_T));
 
 	void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
 	uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
 	uint64_t count = size/sizeof(regfile_ref_t);
 	uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
-	/*
-	printf("regfile_base :%p\n", base);
-	printf("regfile_ptr  :%p\n", regfile_ptr);
-	printf("regfile_ptr+1:%p\n", regfile_ptr+1);
-	printf("count :%lu\n", count);
-	printf("bufsize:%lu\n", buf_size);
-	*/
 
 	// TODO: Manually managing the buffer, figure it out later...
 	if (size >= drx_buf_get_buffer_size(drcontext, regfile_buf))
@@ -235,7 +192,6 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 
 	insert_load_buf_ptr(drcontext, ilist, where, reg_ptr);
 	insert_save_pc(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_app_pc(where));
-	insert_save_opcode(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_opcode(where));
 	insert_update_buf_ptr(drcontext, ilist, where, reg_ptr, sizeof(insn_ref_t));
 	insert_save_regfile(drcontext, ilist, where);
 
@@ -298,7 +254,7 @@ static void event_thread_init(void *drcontext)
 	data->buf_base = dr_raw_mem_alloc(MEM_BUF_SIZE, DR_MEMPROT_READ | DR_MEMPROT_WRITE, NULL);
 	DR_ASSERT(data->seg_base != NULL && data->buf_base != NULL);
 
-	CUR_BUF_PTR(data->seg_base) = data->buf_base;	
+	CUR_BUF_PTR(data->seg_base) = data->buf_base;
 
 	int pid = dr_get_process_id();
 	int tid = dr_get_thread_id(drcontext);
@@ -306,15 +262,7 @@ static void event_thread_init(void *drcontext)
 
 	data->num_refs = 0;
 	create_trace(buf, &data->peek_trace);
-	/*
-	data->log = file_open(client_id, drcontext, NULL, "trace", DR_FILE_ALLOW_LARGE);
-	data->logf = fdopen(data->log, "w");
-	data->bytes = file_open(client_id, drcontext, NULL, "bytes", DR_FILE_ALLOW_LARGE);
-	data->bytesf = fdopen(data->bytes, "w");
-	data->regfile = file_open(client_id, drcontext, NULL, "regfile", DR_FILE_ALLOW_LARGE);
-	data->regfilef = fdopen(data->regfile, "w");
-	*/
-	fprintf(data->peek_trace.insn_trace, "Format: <instr address>,<opcode>\n");
+	printf("Created trace : %s\n", buf);
 }
 
 static void event_thread_exit(void *drcontext)

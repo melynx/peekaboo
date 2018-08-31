@@ -25,14 +25,14 @@ typedef union {
 
 
 typedef struct {
-    UINT64_T reg_rdi;
+	UINT64_T reg_rdi;
 	UINT64_T reg_rsi;
 	UINT64_T reg_rsp;
 	UINT64_T reg_rbp;
-	UINT64_REG_T reg_rbx;
-	UINT64_REG_T reg_rdx;
-	UINT64_REG_T reg_rcx;
-	UINT64_REG_T reg_rax;
+	UINT64_T reg_rbx;
+	UINT64_T reg_rdx;
+	UINT64_T reg_rcx;
+	UINT64_T reg_rax;
 	UINT64_T reg_r8;
 	UINT64_T reg_r9;
 	UINT64_T reg_r10;
