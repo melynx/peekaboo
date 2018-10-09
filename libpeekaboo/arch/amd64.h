@@ -23,6 +23,10 @@ typedef union {
     UINT64_T r[4];
 } UINT256_T;
 
+typedef union {
+    UINT64_T r[2];
+} UINT128_T;
+
 /* Regfile */
 
 typedef struct {
@@ -87,13 +91,31 @@ typedef struct {
     UINT80_T reg_st7;
 } CPU_ST_T;
 
-
+typedef struct {
+  uint16_t fcw;  // FPU control word
+  uint16_t fsw;  // FPU status word
+  uint8_t ftw;  // Abridged FPU tag word
+  uint8_t reserved_1;
+  uint16_t fop;  // FPU opcode
+  uint32_t fpu_ip;  // FPU instruction pointer offset
+  uint16_t fpu_cs;  // FPU instruction pointer segment selector
+  uint16_t reserved_2;
+  uint32_t fpu_dp;  // FPU data pointer offset
+  uint16_t fpu_ds;  // FPU data pointer segment selector
+  uint16_t reserved_3;
+  uint32_t mxcsr;  // Multimedia extensions status and control register
+  uint32_t mxcsr_mask;  // Valid bits in mxcsr
+  UINT128_T st_mm[8];  // 8 128-bits FP Registers
+  UINT128_T xmm[16];  // 16 128-bits XMM Regiters
+  uint8_t padding[96]; // 416 Bytes are used. The total area should be 512 bytes.
+} __attribute__((packed)) FXSAVE_AREA_T;
 
 typedef struct {
 	CPU_GR_T 	gpr;
 	CPU_SIMD_T 	simd;
 	CPU_SEG_T 	seg;
 	CPU_ST_T 	fpr;
+	FXSAVE_AREA_T	fxsave;
 } regfile_amd64_t;
 
 /* End of Regfile */
