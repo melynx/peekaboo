@@ -1,5 +1,5 @@
 /*! @file
- *  this file is the x86-64 regfile structure.
+ *  this file is the x86-64 regfile structure & memfile structure.
  */
 
 #include <stdio.h>
@@ -23,6 +23,7 @@ typedef union {
     UINT64_T r[4];
 } UINT256_T;
 
+/* Regfile */
 
 typedef struct {
 	UINT64_T reg_rdi;
@@ -94,3 +95,20 @@ typedef struct {
 	CPU_SEG_T 	seg;
 	CPU_ST_T 	fpr;
 } regfile_amd64_t;
+
+/* End of Regfile */
+
+/* Memfile */
+
+typedef struct {
+	uint64_t addr;		/* memory address */
+	uint64_t value;		/* memory value */
+	uint32_t size;		/* how many bits are vaild in value */
+	uint32_t status; 	/* 0 for Read, 1 for write */
+} mem_ref_t;
+
+typedef struct {
+	uint32_t length;	/* how many refs are there*/
+	mem_ref_t *ref;
+} memfile_amd64_t;
+/* End of Memfile */
