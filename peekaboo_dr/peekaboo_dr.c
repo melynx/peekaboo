@@ -3,37 +3,19 @@
 #include <stdint.h>
 #include <stddef.h> /* for offsetof */
 #include <assert.h>
+#include <inttypes.h>
 
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
 #include "drx.h"
+#include "dr_defines.h"
 
 #include "libpeekaboo.h"
 #include "peekaboo_utils.h"
 
 #include "arch/amd64.h"
 typedef regfile_amd64_t regfile_ref_t;
-
-typedef struct insn_ref {
-	uint64_t pc;
-} insn_ref_t;
-
-typedef struct {
-	uint64_t pc;
-	uint32_t size;
-	uint8_t rawbytes[16];
-} bytes_map_t ;
-
-
-#define MAX_NUM_INS_REFS 8192
-#define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
-
-#define MAX_NUM_REG_REFS 8192
-#define REG_BUF_SIZE (sizeof(regfile_ref_t) * MAX_NUM_REG_REFS)
-
-#define MAX_NUM_BYTES_MAP 512
-#define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
 
 typedef struct {
 	byte *seg_base;
@@ -87,7 +69,17 @@ static void flush_regfile_manual(void *drcontext)
 	void *buf_ptr = drx_buf_get_buffer_ptr(drcontext, regfile_buf);
 	size_t size = buf_ptr - buf_base;
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
-	size_t count = size / sizeof(regfile_ref_t);
+	// ZL: off-by-on bug here, because we manually handle this case, there is 1 less entry
+	size_t count = size / sizeof(regfile_ref_t) + 1;
+	if (size % sizeof(regfile_ref_t) != 0)
+	{
+		printf("buf_base:%p\n", buf_base);
+		printf("buf_ptr:%p\n", buf_ptr);
+		printf("count:%lu\n", count);
+		printf("size:%lu\n", size);
+		printf("size:%lu\n", sizeof(regfile_ref_t));
+		printf("size:%lu\n", size%sizeof(regfile_ref_t));
+	}
 	DR_ASSERT(size % sizeof(regfile_ref_t) == 0);
 	fwrite(buf_base, sizeof(regfile_ref_t), count, data->peek_trace.regfile);
 	drx_buf_set_buffer_ptr(drcontext, regfile_buf, buf_base);
@@ -165,8 +157,9 @@ static void save_regfile(void)
 	uint64_t count = size/sizeof(regfile_ref_t);
 	uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
 
+	//printf("count:%lu\n", count);
 	// TODO: Manually managing the buffer, figure it out later...
-	if (size >= drx_buf_get_buffer_size(drcontext, regfile_buf))
+	if (size >= buf_size)
 		flush_regfile_manual(drcontext);
 	else
 		drx_buf_set_buffer_ptr(drcontext, regfile_buf, regfile_ptr+1);
@@ -258,7 +251,7 @@ static void event_thread_init(void *drcontext)
 
 	int pid = dr_get_process_id();
 	int tid = dr_get_thread_id(drcontext);
-	snprintf(buf, 256, "peekaboo-%d-%d", pid, tid);
+	snprintf(buf, 256, "%s-%d-%d", dr_get_application_name(), pid, tid);
 
 	data->num_refs = 0;
 	create_trace(buf, &data->peek_trace);
@@ -269,12 +262,12 @@ static void event_thread_exit(void *drcontext)
 {
 	per_thread_t *data;
 	flush_data(drcontext);
-	flush_regfile_manual(drcontext);
+	//flush_regfile_manual(drcontext);
 	data = drmgr_get_tls_field(drcontext, tls_idx);
 	dr_mutex_lock(mutex);
 	num_refs += data->num_refs;
-	dr_mutex_unlock(mutex);
 	close_trace(&data->peek_trace);
+	dr_mutex_unlock(mutex);
 	dr_raw_mem_free(data->buf_base, MEM_BUF_SIZE);
 	dr_thread_free(drcontext, data, sizeof(per_thread_t));
 }
@@ -282,6 +275,8 @@ static void event_thread_exit(void *drcontext)
 static void event_exit(void)
 {
 	dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
+	printf("'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
+
 	if (!dr_raw_tls_cfree(tls_offs, INSTRACE_TLS_COUNT)) DR_ASSERT(false);
 
 	if (!drmgr_unregister_tls_field(tls_idx) ||
@@ -326,10 +321,11 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
 	dr_log(NULL, DR_LOG_ALL, 11, "Client 'peekaboo' initializing\n");
 
+	printf("Binary being traced: %s\n", dr_get_application_name());
 	printf("REGFILE_BUF = %p\n", regfile_buf);
 	printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
 	printf("sizeof reg_t:%lu\n", sizeof(reg_t));
 	printf("sizeof dr_mcontext_t:%lu\n", sizeof(dr_mcontext_t));
-	printf("Number of SIMD slots: %d\n", NUM_SIMD_SLOTS);
+	printf("Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }

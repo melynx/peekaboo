@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef uint64_t    UINT64_T;
+typedef uint64_t UINT64_T;
 
 typedef union {
     uint64_t r;
@@ -118,7 +118,34 @@ typedef struct {
 	FXSAVE_AREA_T	fxsave;
 } regfile_amd64_t;
 
+void regfile_pp(regfile_amd64_t regfile)
+{
+	char *gpr_string[] = {"rdi",
+	                     "rsi",
+	                     "rsp",
+	                     "rbp",
+	                     "rbx",
+	                     "rdx",
+	                     "rcx",
+	                     "rax",
+	                     "r8",
+	                     "r9",
+	                     "r10",
+	                     "r11",
+	                     "r12",
+	                     "r13",
+	                     "r14",
+	                     "r15",
+	                     "rflags",
+	                     "rip"};
+
+	for (int x=0; x<18; x++)
+	{
+		printf("%s:%" PRIx64 "\n", gpr_string[x], ((UINT64_T *)&(regfile.gpr))[x]);
+	}
+}
 /* End of Regfile */
+
 
 /* Memfile */
 
@@ -134,3 +161,25 @@ typedef struct {
 	mem_ref_t *ref;
 } memfile_amd64_t;
 /* End of Memfile */
+
+typedef struct insn_ref {
+	uint64_t pc;
+} insn_ref_t;
+
+typedef struct {
+	uint64_t pc;
+	uint32_t size;
+	uint8_t rawbytes[16];
+} bytes_map_t ;
+
+
+#define MAX_NUM_INS_REFS 8192
+#define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
+
+#define MAX_NUM_REG_REFS 8192
+#define REG_BUF_SIZE (sizeof(regfile_amd64_t) * MAX_NUM_REG_REFS)
+
+#define MAX_NUM_BYTES_MAP 512
+#define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
+
+#define NUM_SIMD_SLOTS 16

@@ -59,6 +59,12 @@ int create_trace_file(char *dir_path, char *filename, int size, FILE **output)
 
 int close_trace(peekaboo_trace_t *trace)
 {
+	fflush(trace->insn_trace);
+	fflush(trace->bytes_map);
+	fflush(trace->regfile);
+	fflush(trace->memfile);
+	fflush(trace->metafile);
+
 	fclose(trace->insn_trace);
 	fclose(trace->bytes_map);
 	fclose(trace->regfile);
