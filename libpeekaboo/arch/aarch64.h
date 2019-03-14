@@ -30,24 +30,46 @@ typedef union {
 /* Regfile */
 
 typedef struct {
-	UINT64_T reg_rdi;
-	UINT64_T reg_rsi;
-	UINT64_T reg_rsp;
-	UINT64_T reg_rbp;
-	UINT64_T reg_rbx;
-	UINT64_T reg_rdx;
-	UINT64_T reg_rcx;
-	UINT64_T reg_rax;
-	UINT64_T reg_r8;
-	UINT64_T reg_r9;
-	UINT64_T reg_r10;
-	UINT64_T reg_r11;
-	UINT64_T reg_r12;
-	UINT64_T reg_r13;
-	UINT64_T reg_r14;
-	UINT64_T reg_r15;
-	UINT64_T reg_rflags;
-	UINT64_T reg_rip;
+	uint64_t r0;   /**< The r0 register. */
+	uint64_t r1;   /**< The r1 register. */
+	uint64_t r2;   /**< The r2 register. */
+	uint64_t r3;   /**< The r3 register. */
+	uint64_t r4;   /**< The r4 register. */
+	uint64_t r5;   /**< The r5 register. */
+	uint64_t r6;   /**< The r6 register. */
+	uint64_t r7;   /**< The r7 register. */
+	uint64_t r8;   /**< The r8 register. */
+	uint64_t r9;   /**< The r9 register. */
+	uint64_t r10;  /**< The r10 register. */
+	uint64_t r11;  /**< The r11 register. */
+	uint64_t r12;  /**< The r12 register. */
+	uint64_t r13;  /**< The r13 register. */
+	uint64_t r14;  /**< The r14 register. */
+	uint64_t r15;  /**< The r15 register. */
+	uint64_t r16;  /**< The r16 register. \note For 64-bit DR builds only. */
+	uint64_t r17;  /**< The r17 register. \note For 64-bit DR builds only. */
+	uint64_t r18;  /**< The r18 register. \note For 64-bit DR builds only. */
+	uint64_t r19;  /**< The r19 register. \note For 64-bit DR builds only. */
+	uint64_t r20;  /**< The r20 register. \note For 64-bit DR builds only. */
+	uint64_t r21;  /**< The r21 register. \note For 64-bit DR builds only. */
+	uint64_t r22;  /**< The r22 register. \note For 64-bit DR builds only. */
+	uint64_t r23;  /**< The r23 register. \note For 64-bit DR builds only. */
+	uint64_t r24;  /**< The r24 register. \note For 64-bit DR builds only. */
+	uint64_t r25;  /**< The r25 register. \note For 64-bit DR builds only. */
+	uint64_t r26;  /**< The r26 register. \note For 64-bit DR builds only. */
+	uint64_t r27;  /**< The r27 register. \note For 64-bit DR builds only. */
+	uint64_t r28;  /**< The r28 register. \note For 64-bit DR builds only. */
+	uint64_t r29;  /**< The r29 register. \note For 64-bit DR builds only. */
+	uint64_t lr;  /**< The link register. */
+	uint64_t sp;  /**< The stack pointer register. */
+	/**
+	 * The program counter.
+	 * \note This field is not always set or read by all API routines.
+	 */
+	uint64_t pc;
+	uint32_t nzcv; /**< Condition flags (status register). */
+	uint32_t fpcr; /**< Floating-Point Control Register. */
+	uint32_t fpsr; /**< Floating-Point Status Register. */
 } CPU_GR_T;
 
 typedef struct {
@@ -92,31 +114,11 @@ typedef struct {
 } CPU_ST_T;
 
 typedef struct {
-  uint16_t fcw;  // FPU control word
-  uint16_t fsw;  // FPU status word
-  uint8_t ftw;  // Abridged FPU tag word
-  uint8_t reserved_1;
-  uint16_t fop;  // FPU opcode
-  uint32_t fpu_ip;  // FPU instruction pointer offset
-  uint16_t fpu_cs;  // FPU instruction pointer segment selector
-  uint16_t reserved_2;
-  uint32_t fpu_dp;  // FPU data pointer offset
-  uint16_t fpu_ds;  // FPU data pointer segment selector
-  uint16_t reserved_3;
-  uint32_t mxcsr;  // Multimedia extensions status and control register
-  uint32_t mxcsr_mask;  // Valid bits in mxcsr
-  UINT128_T st_mm[8];  // 8 128-bits FP Registers
-  UINT128_T xmm[16];  // 16 128-bits XMM Regiters
-  uint8_t padding[96]; // 416 Bytes are used. The total area should be 512 bytes.
-} __attribute__((packed)) FXSAVE_AREA_T;
-
-typedef struct {
 	CPU_GR_T 	gpr;
 	CPU_SIMD_T 	simd;
 	CPU_SEG_T 	seg;
 	CPU_ST_T 	fpr;
-	FXSAVE_AREA_T	fxsave;
-} regfile_amd64_t;
+} regfile_aarch64_t;
 
 void regfile_pp(regfile_amd64_t regfile)
 {

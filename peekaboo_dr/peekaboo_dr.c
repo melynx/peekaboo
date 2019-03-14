@@ -16,6 +16,33 @@
 #ifdef X86
 	#ifdef X64
 		#include "arch/amd64.h"
+		void copy_regfile(regfile_ref_t *regfile_ref, dr_mcontext_t *mc)
+		{
+			regfile_ptr->gpr.reg_rdi = mc->rdi;
+			regfile_ptr->gpr.reg_rsi = mc->rsi;
+			regfile_ptr->gpr.reg_rsp = mc->rsp;
+			regfile_ptr->gpr.reg_rbp = mc->rbp;
+			regfile_ptr->gpr.reg_rbx = mc->rbx;
+			regfile_ptr->gpr.reg_rdx = mc->rdx;
+			regfile_ptr->gpr.reg_rcx = mc->rcx;
+			regfile_ptr->gpr.reg_rax = mc->rax;
+			regfile_ptr->gpr.reg_r8 = mc->r8;
+			regfile_ptr->gpr.reg_r9 = mc->r9;
+			regfile_ptr->gpr.reg_r10 = mc->r10;
+			regfile_ptr->gpr.reg_r11 = mc->r11;
+			regfile_ptr->gpr.reg_r12 = mc->r12;
+			regfile_ptr->gpr.reg_r13 = mc->r13;
+			regfile_ptr->gpr.reg_r14 = mc->r14;
+			regfile_ptr->gpr.reg_r15 = mc->r15;
+			regfile_ptr->gpr.reg_rflags = mc->rflags;
+			regfile_ptr->gpr.reg_rip = (uint64_t) mc->rip;
+
+			// here, we cast the simd structure into an array of uint256_t
+			// TODO: Convert this to a single memcpy for performance
+			UINT256_T *dst_ptr = (UINT256_T *)&regfile_ptr->simd;
+			for (int x=0; x<15; x++)
+				memcpy(&dst_ptr[x], &mc->ymm[x], sizeof(UINT256_T));
+		}
 	#else
 		#include "arch/x86.h"
 		char *arch = "X86";
@@ -23,6 +50,9 @@
 #else
 	#ifdef X64
 		#include "arch/aarch64.h"
+		void copy_regfile(regfile_ref_t *regfile_ref, dr_mcontext_t *mc)
+		{
+		}
 	#else
 		#include "arch/arm.h"
 		char *arch = "ARM";
@@ -139,30 +169,7 @@ static void save_regfile(void)
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
 
-	regfile_ptr->gpr.reg_rdi = mc.rdi;
-	regfile_ptr->gpr.reg_rsi = mc.rsi;
-	regfile_ptr->gpr.reg_rsp = mc.rsp;
-	regfile_ptr->gpr.reg_rbp = mc.rbp;
-	regfile_ptr->gpr.reg_rbx = mc.rbx;
-	regfile_ptr->gpr.reg_rdx = mc.rdx;
-	regfile_ptr->gpr.reg_rcx = mc.rcx;
-	regfile_ptr->gpr.reg_rax = mc.rax;
-	regfile_ptr->gpr.reg_r8 = mc.r8;
-	regfile_ptr->gpr.reg_r9 = mc.r9;
-	regfile_ptr->gpr.reg_r10 = mc.r10;
-	regfile_ptr->gpr.reg_r11 = mc.r11;
-	regfile_ptr->gpr.reg_r12 = mc.r12;
-	regfile_ptr->gpr.reg_r13 = mc.r13;
-	regfile_ptr->gpr.reg_r14 = mc.r14;
-	regfile_ptr->gpr.reg_r15 = mc.r15;
-	regfile_ptr->gpr.reg_rflags = mc.rflags;
-	regfile_ptr->gpr.reg_rip = (uint64_t) mc.rip;
-
-	// here, we cast the simd structure into an array of uint256_t
-	// TODO: Convert this to a single memcpy for performance
-	UINT256_T *dst_ptr = (UINT256_T *)&regfile_ptr->simd;
-	for (int x=0; x<15; x++)
-		memcpy(&dst_ptr[x], &mc.ymm[x], sizeof(UINT256_T));
+	copy_regfile(regfile_ptr, &mc);
 
 	void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
 	uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
@@ -285,7 +292,7 @@ static void event_thread_exit(void *drcontext)
 
 static void event_exit(void)
 {
-	dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
+	//dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
 	printf("'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
 
 	if (!dr_raw_tls_cfree(tls_offs, INSTRACE_TLS_COUNT)) DR_ASSERT(false);
