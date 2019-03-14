@@ -12,7 +12,6 @@
 #include "dr_defines.h"
 
 #include "libpeekaboo.h"
-#include "peekaboo_utils.h"
 
 #include "arch/amd64.h"
 typedef regfile_amd64_t regfile_ref_t;
