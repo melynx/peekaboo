@@ -13,8 +13,21 @@
 
 #include "libpeekaboo.h"
 
-#include "arch/amd64.h"
-typedef regfile_amd64_t regfile_ref_t;
+#ifdef X86
+	#ifdef X64
+		#include "arch/amd64.h"
+	#else
+		#include "arch/x86.h"
+		char *arch = "X86";
+	#endif
+#else
+	#ifdef X64
+		#include "arch/aarch64.h"
+	#else
+		#include "arch/arm.h"
+		char *arch = "ARM";
+	#endif
+#endif
 
 typedef struct {
 	byte *seg_base;
@@ -156,7 +169,6 @@ static void save_regfile(void)
 	uint64_t count = size/sizeof(regfile_ref_t);
 	uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
 
-	//printf("count:%lu\n", count);
 	// TODO: Manually managing the buffer, figure it out later...
 	if (size >= buf_size)
 		flush_regfile_manual(drcontext);
@@ -318,7 +330,8 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
 	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
 
-	dr_log(NULL, DR_LOG_ALL, 11, "Client 'peekaboo' initializing\n");
+	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
+	printf("%s - Client 'peekaboo' initializing\n", arch);
 
 	printf("Binary being traced: %s\n", dr_get_application_name());
 	printf("REGFILE_BUF = %p\n", regfile_buf);
