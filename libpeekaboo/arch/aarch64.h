@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define NUM_SIMD_SLOTS 32
+
 typedef uint64_t UINT64_T;
 
 typedef union {
@@ -73,77 +75,22 @@ typedef struct {
 } CPU_GR_T;
 
 typedef struct {
-    UINT64_T reg_cs;
-    UINT64_T reg_ss;
-    UINT64_T reg_ds;
-    UINT64_T reg_es;
-    UINT64_T reg_fs;
-    UINT64_T reg_gs;
-} CPU_SEG_T;
-
-typedef struct {
-    //  simd: avx2
-    UINT256_T ymm0;
-    UINT256_T ymm1;
-    UINT256_T ymm2;
-    UINT256_T ymm3;
-    UINT256_T ymm4;
-    UINT256_T ymm5;
-    UINT256_T ymm6;
-    UINT256_T ymm7;
-    UINT256_T ymm8;
-    UINT256_T ymm9;
-    UINT256_T ymm10;
-    UINT256_T ymm11;
-    UINT256_T ymm12;
-    UINT256_T ymm13;
-    UINT256_T ymm14;
-    UINT256_T ymm15;
-} CPU_SIMD_T;
-
-typedef struct {
-    // fp registers
-    UINT80_T reg_st0;
-    UINT80_T reg_st1;
-    UINT80_T reg_st2;
-    UINT80_T reg_st3;
-    UINT80_T reg_st4;
-    UINT80_T reg_st5;
-    UINT80_T reg_st6;
-    UINT80_T reg_st7;
-} CPU_ST_T;
-
-typedef struct {
 	CPU_GR_T 	gpr;
-	CPU_SIMD_T 	simd;
-	CPU_SEG_T 	seg;
-	CPU_ST_T 	fpr;
+	UINT128_T v[NUM_SIMD_SLOTS];
 } regfile_aarch64_t;
 
-void regfile_pp(regfile_amd64_t regfile)
+void regfile_pp(regfile_aarch64_t regfile)
 {
-	char *gpr_string[] = {"rdi",
-	                     "rsi",
-	                     "rsp",
-	                     "rbp",
-	                     "rbx",
-	                     "rdx",
-	                     "rcx",
-	                     "rax",
-	                     "r8",
-	                     "r9",
-	                     "r10",
-	                     "r11",
-	                     "r12",
-	                     "r13",
-	                     "r14",
-	                     "r15",
-	                     "rflags",
-	                     "rip"};
+	char *regname[] = {"r0", "r1", "r2", "r3", "r4", "r5",
+		           "r6", "r7", "r8", "r9", "r10", "r11",
+		           "r12", "r13", "r14", "r15", "r16", "r17",
+		           "r18", "r19", "r20", "r21", "r22", "r23",
+		           "r24", "r25", "r26", "r27", "r28", "r29",
+		           "lr", "sp", "pc", "nzcv", "fpcr", "fpsr"};
 
-	for (int x=0; x<18; x++)
+	for (int x=0; x<31; x++)
 	{
-		printf("%s:%" PRIx64 "\n", gpr_string[x], ((UINT64_T *)&(regfile.gpr))[x]);
+		printf("%s:%" PRIx64 "\n", regname[x], ((UINT64_T *)&(regfile.gpr))[x]);
 	}
 }
 /* End of Regfile */
@@ -181,9 +128,8 @@ typedef regfile_aarch64_t regfile_ref_t;
 #define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
 
 #define MAX_NUM_REG_REFS 8192
-#define REG_BUF_SIZE (sizeof(regfile_amd64_t) * MAX_NUM_REG_REFS)
+#define REG_BUF_SIZE (sizeof(regfile_ref_t) * MAX_NUM_REG_REFS)
 
 #define MAX_NUM_BYTES_MAP 512
 #define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
 
-#define NUM_SIMD_SLOTS 16
