@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <inttypes.h>
 
 #define NUM_SIMD_SLOTS 32
 
@@ -133,6 +134,6 @@ typedef regfile_aarch64_t regfile_ref_t;
 #define MAX_NUM_MEM_REFS 8192
 #define MEM_REFS_SIZE (sizeof(mem_ref_t) * MAX_NUM_MEM_REFS)
 
-#define MAX_NUM_BYTES_MAP 512
+#define MAX_NUM_BYTES_MAP 128
 #define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
 

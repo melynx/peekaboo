@@ -109,11 +109,13 @@ static void flush_regfile(void *drcontext, void *buf_base, size_t size)
 
 static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
 {
+	//printf("flush:%llu:%p\n", size / sizeof(mem_ref_t), buf_base);
+	//printf("size:%d\n", sizeof(mem_ref_t));
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(mem_ref_t);
 	DR_ASSERT(size % sizeof(mem_ref_t) == 0);
 	fwrite(buf_base, sizeof(mem_ref_t), count, data->peek_trace.memfile);
-	drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
+	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
 static void flush_map(void *drcontext, void *buf_base, size_t size)
@@ -170,9 +172,9 @@ static void save_regfile(void)
 	mem_ref_t *mem_ref_ptr = (mem_ref_t *)drx_buf_get_buffer_ptr(drcontext, memrefs_buf);
 	mem_ref_t *mem_ref_base = (mem_ref_t *)drx_buf_get_buffer_base(drcontext, memrefs_buf);
 	size = (uint64_t)mem_ref_ptr - (uint64_t)mem_ref_base;
-	printf("memref_ptr:%p\n", mem_ref_ptr);
-	printf("memref_size:%d\n", size);
-	printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
+	//printf("memref_ptr:%p\n", mem_ref_ptr);
+	//printf("memref_size:%d\n", size);
+	//printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
 }
 
 static void insert_save_regfile(void *drcontext, instrlist_t *ilist, instr_t *where)
@@ -198,14 +200,14 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 
 	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(mem_ref_t, addr)); 
-    	/* inserts size */
-	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
+    	///* inserts size */
+	//drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(mem_ref_t, size));
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(mem_ref_t, size));
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(mem_ref_t, status));
 
-	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
-	drx_buf_insert_update_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(mem_ref_t));
+	//drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
+	drx_buf_insert_update_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, sizeof(mem_ref_t));
 
 	//printf("sizesize:%d\n", size);
 	//disassemble_with_info(drcontext, instr_get_app_pc(where), 0, true, true);
@@ -243,9 +245,10 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 
 static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, bool for_trace, bool translating, void **user_data)
 {
+	//printf("bb!\n");
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	bytes_map_t bytes_map[MAX_NUM_BYTES_MAP];
-	uint idx;
+	uint idx=0;
 	instr_t *insn;
 
 	for (insn = instrlist_first_app(bb), idx=0; insn && idx < MAX_NUM_BYTES_MAP; insn=instr_get_next_app(insn), idx++)
@@ -261,12 +264,14 @@ static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, 
 	}
 
 	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace.bytes_map);
+	//printf("write\n");
 	return DR_EMIT_DEFAULT;
 }
 
 static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 
 		                             bool for_trace, bool translating, void *user_data)
 {
+	//printf("instr!\n");
 	drmgr_disable_auto_predication(drcontext, bb);
 	if (!instr_is_app(instr)) return DR_EMIT_DEFAULT;
 
@@ -342,6 +347,7 @@ static void event_exit(void)
 
 	dr_mutex_destroy(mutex);
 	drmgr_exit();
+	drutil_exit();
 
 	drx_buf_free(regfile_buf);
 	drx_buf_free(memrefs_buf);
@@ -352,11 +358,12 @@ static void event_exit(void)
 
 DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 {
-	drreg_options_t ops = {sizeof(ops), 3, false};
+	drreg_options_t ops = {sizeof(ops), 4, false};
 	dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
 	drreg_init(&ops);
 	drmgr_init();
+	drutil_init();
 	drx_init();
 
 	dr_register_exit_event(event_exit);
@@ -370,10 +377,10 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	tls_idx = drmgr_register_tls_field();
 	DR_ASSERT(tls_idx != -1);
 
-	memrefs_buf = drx_buf_create_trace_buffer(MEM_REFS_SIZE, flush_memrefs);
-	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
-
 	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
+
+	memrefs_buf = drx_buf_create_trace_buffer(24*512, flush_memrefs);
+	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
 	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
 	printf("%s - Client 'peekaboo' initializing\n", arch);
