@@ -70,6 +70,7 @@ typedef struct {
 	 * \note This field is not always set or read by all API routines.
 	 */
 	uint64_t pc;
+
 	uint32_t nzcv; /**< Condition flags (status register). */
 	uint32_t fpcr; /**< Floating-Point Control Register. */
 	uint32_t fpsr; /**< Floating-Point Status Register. */

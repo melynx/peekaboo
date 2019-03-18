@@ -51,8 +51,10 @@
 #else
 	#ifdef X64
 		#include "arch/aarch64.h"
-		void copy_regfile(regfile_ref_t *regfile_ref, dr_mcontext_t *mc)
+		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
+			memcpy(&regfile_ptr->r0, &mc->r0, 33*8 + 3*4);
+			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOT*sizeof(regfile_ptr->v[0]));
 		}
 	#else
 		#include "arch/arm.h"
