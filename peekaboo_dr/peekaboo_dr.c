@@ -17,7 +17,7 @@
 #ifdef X86
 	#ifdef X64
 		#include "arch/amd64.h"
-		void copy_regfile(regfile_ref_t *regfile_ref, dr_mcontext_t *mc)
+		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			regfile_ptr->gpr.reg_rdi = mc->rdi;
 			regfile_ptr->gpr.reg_rsi = mc->rsi;
