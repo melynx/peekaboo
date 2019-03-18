@@ -91,3 +91,28 @@ int create_trace(char *name, peekaboo_trace_t *trace)
 
 	return 0;
 }
+
+int load_trace(char *dir_path, peekaboo_trace_t *trace)
+{
+	char path[MAX_PATH];
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
+	trace->insn_trace = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
+	trace->bytes_map = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");
+	trace->regfile = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
+	trace->memfile = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
+	trace->metafile = fopen(path, "rb");
+	return 0;
+}
+
+int num_insn(peekaboo_trace_t *trace)
+{
+	size_t trace_size = 0;
+	fseek(trace->insn_trace, 0, SEEK_END);
+	trace_size = ftell(trace->insn_trace);
+	rewind(trace->insn_trace);
+	return trace_size / sizeof(insn_ref_t);
+}

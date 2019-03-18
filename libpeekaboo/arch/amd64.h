@@ -175,5 +175,4 @@ typedef struct {
 } bytes_map_t ;
 
 char *arch = "AMD64";
-typedef regfile_amd64_t regfile_ref_t;
 

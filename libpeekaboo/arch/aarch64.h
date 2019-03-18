@@ -124,5 +124,4 @@ typedef struct {
 } bytes_map_t ;
 
 char *arch = "AARCH64";
-typedef regfile_aarch64_t regfile_ref_t;
 
