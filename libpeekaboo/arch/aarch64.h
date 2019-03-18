@@ -125,15 +125,3 @@ typedef struct {
 char *arch = "AARCH64";
 typedef regfile_aarch64_t regfile_ref_t;
 
-#define MAX_NUM_INS_REFS 8192
-#define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
-
-#define MAX_NUM_REG_REFS 8192
-#define REG_BUF_SIZE (sizeof(regfile_ref_t) * MAX_NUM_REG_REFS)
-
-#define MAX_NUM_MEM_REFS 8192
-#define MEM_REFS_SIZE (sizeof(mem_ref_t) * MAX_NUM_MEM_REFS)
-
-#define MAX_NUM_BYTES_MAP 128
-#define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
-
