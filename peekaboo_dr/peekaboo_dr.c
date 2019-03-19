@@ -401,7 +401,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
 	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
-	printf("%s - Client 'peekaboo' initializing\n", arch);
+	printf("%s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Binary being traced: %s\n", dr_get_application_name());
 	printf("REGFILE_BUF = %p\n", regfile_buf);
