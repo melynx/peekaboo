@@ -47,6 +47,7 @@
 	#else
 		#include "arch/x86.h"
 		char *arch = "X86";
+		// TODO: Implement X86 stuff here
 	#endif
 #else
 	#ifdef X64
@@ -59,6 +60,7 @@
 	#else
 		#include "arch/arm.h"
 		char *arch = "ARM";
+		// TODO: Implement ARM stuff here
 	#endif
 #endif
 
