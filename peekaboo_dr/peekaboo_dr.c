@@ -17,6 +17,7 @@
 #ifdef X86
 	#ifdef X64
 		#include "arch/amd64.h"
+		typedef regfile_amd64_t regfile_ref_t;
 		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			regfile_ptr->gpr.reg_rdi = mc->rdi;
@@ -39,10 +40,7 @@
 			regfile_ptr->gpr.reg_rip = (uint64_t) mc->rip;
 
 			// here, we cast the simd structure into an array of uint256_t
-			// TODO: Convert this to a single memcpy for performance
-			UINT256_T *dst_ptr = (UINT256_T *)&regfile_ptr->simd;
-			for (int x=0; x<15; x++)
-				memcpy(&dst_ptr[x], &mc->ymm[x], sizeof(UINT256_T));
+			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
 		}
 	#else
 		#include "arch/x86.h"
@@ -52,10 +50,11 @@
 #else
 	#ifdef X64
 		#include "arch/aarch64.h"
+		typedef regfile_aarch64_t regfile_ref_t;
 		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			memcpy(&regfile_ptr->r0, &mc->r0, 33*8 + 3*4);
-			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOT*sizeof(regfile_ptr->v[0]));
+			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOTS*sizeof(regfile_ptr->v[0]));
 		}
 	#else
 		#include "arch/arm.h"
@@ -404,7 +403,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
 	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
-	printf("%s - Client 'peekaboo' initializing\n", arch);
+	printf("%s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Binary being traced: %s\n", dr_get_application_name());
 	printf("REGFILE_BUF = %p\n", regfile_buf);

@@ -6,6 +6,8 @@
 
 #include "libpeekaboo.h"
 
+
+
 int create_folder(char *name, char *output, uint32_t max_size)
 {
 	DIR *dir = opendir(name);
@@ -90,4 +92,40 @@ int create_trace(char *name, peekaboo_trace_t *trace)
 	create_trace_file(dir_path, "metafile", MAX_PATH, &trace->metafile);
 
 	return 0;
+}
+
+int load_trace(char *dir_path, peekaboo_trace_t *trace)
+{
+	char path[MAX_PATH];
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
+	trace->insn_trace = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
+	trace->bytes_map = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");
+	trace->regfile = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
+	trace->memfile = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
+	trace->metafile = fopen(path, "rb");
+	return 0;
+}
+
+int write_metadata(peekaboo_trace_t *trace, enum ARCH arch, uint32_t version)
+{
+}
+
+size_t get_insn_size(peekaboo_trace_t *trace)
+{
+	size_t size;
+	return size;
+}
+
+int num_insn(peekaboo_trace_t *trace)
+{
+	size_t trace_size = 0;
+	size_t insn_size = get_insn_size(trace);
+	fseek(trace->insn_trace, 0, SEEK_END);
+	trace_size = ftell(trace->insn_trace);
+	rewind(trace->insn_trace);
+	return trace_size / insn_size;
 }

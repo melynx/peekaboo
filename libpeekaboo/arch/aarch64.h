@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <inttypes.h>
 
+#include "libpeekaboo.h"
+
 #define NUM_SIMD_SLOTS 32
 
 typedef uint64_t UINT64_T;
@@ -123,6 +125,5 @@ typedef struct {
 	uint8_t rawbytes[16];
 } bytes_map_t ;
 
-char *arch = "AARCH64";
-typedef regfile_aarch64_t regfile_ref_t;
-
+char *arch_str = "AARCH64";
+ARCH arch = ARCH_AARCH64;
