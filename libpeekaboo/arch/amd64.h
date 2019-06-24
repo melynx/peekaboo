@@ -162,7 +162,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t length;	/* how many refs are there*/
-	mem_ref_t *ref;
+//	mem_ref_t *ref;
 } memfile_amd64_t;
 /* End of Memfile */
 

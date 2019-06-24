@@ -65,12 +65,14 @@ int close_trace(peekaboo_trace_t *trace)
 	fflush(trace->bytes_map);
 	fflush(trace->regfile);
 	fflush(trace->memfile);
+	fflush(trace->memrefs);
 	fflush(trace->metafile);
 
 	fclose(trace->insn_trace);
 	fclose(trace->bytes_map);
 	fclose(trace->regfile);
 	fclose(trace->memfile);
+	fclose(trace->memrefs);
 	fclose(trace->metafile);
 	return 0;
 }
@@ -89,6 +91,7 @@ int create_trace(char *name, peekaboo_trace_t *trace)
 	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace->bytes_map);
 	create_trace_file(dir_path, "regfile", MAX_PATH, &trace->regfile);
 	create_trace_file(dir_path, "memfile", MAX_PATH, &trace->memfile);
+	create_trace_file(dir_path, "memrefs", MAX_PATH, &trace->memrefs);
 	create_trace_file(dir_path, "metafile", MAX_PATH, &trace->metafile);
 
 	return 0;
@@ -105,6 +108,8 @@ int load_trace(char *dir_path, peekaboo_trace_t *trace)
 	trace->regfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
 	trace->memfile = fopen(path, "rb");
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs");
+	trace->memfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
 	trace->metafile = fopen(path, "rb");
 	return 0;
@@ -112,10 +117,16 @@ int load_trace(char *dir_path, peekaboo_trace_t *trace)
 
 int write_metadata(peekaboo_trace_t *trace, enum ARCH arch, uint32_t version)
 {
+	metadata_hdr_t metadata;
+	metadata.arch = arch;
+	metadata.version = version;
+	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace->metafile);
+	return 0;
 }
 
 size_t get_insn_size(peekaboo_trace_t *trace)
 {
+	// TODO: Finish implementing the function
 	size_t size;
 	return size;
 }

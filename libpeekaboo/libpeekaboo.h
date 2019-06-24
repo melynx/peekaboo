@@ -6,12 +6,14 @@
 #include <dirent.h>
 
 #define MAX_PATH (256)
+#define LIBPEEKABOO_VER 1
 
 typedef struct {
 	FILE *insn_trace;
 	FILE *bytes_map;
 	FILE *regfile;
 	FILE *memfile;
+	FILE *memrefs;
 	FILE *metafile;
 } peekaboo_trace_t;
 

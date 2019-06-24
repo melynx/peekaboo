@@ -18,6 +18,7 @@
 	#ifdef X64
 		#include "arch/amd64.h"
 		typedef regfile_amd64_t regfile_ref_t;
+		typedef memfile_amd64_t memfile_t;
 		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			regfile_ptr->gpr.reg_rdi = mc->rdi;
@@ -70,6 +71,9 @@
 #define MAX_NUM_MEM_REFS 8192
 #define MEM_REFS_SIZE (sizeof(mem_ref_t) * MAX_NUM_MEM_REFS)
 
+#define MAX_NUM_MEM_REFS 8192
+#define MEMFILE_SIZE (sizeof(memfile_t) * MAX_NUM_MEM_REFS)
+
 #define MAX_NUM_BYTES_MAP 128
 #define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
 
@@ -99,6 +103,7 @@ static int tls_idx;
 static drx_buf_t *bytes_map_buf;
 static drx_buf_t *regfile_buf;
 static drx_buf_t *memrefs_buf;
+static drx_buf_t *memfile_buf;
 
 static void flush_trace(void *drcontext)
 {
@@ -129,7 +134,18 @@ static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(mem_ref_t);
 	DR_ASSERT(size % sizeof(mem_ref_t) == 0);
-	fwrite(buf_base, sizeof(mem_ref_t), count, data->peek_trace.memfile);
+	fwrite(buf_base, sizeof(mem_ref_t), count, data->peek_trace.memrefs);
+	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
+}
+
+static void flush_memfile(void *drcontext, void *buf_base, size_t size)
+{
+	//printf("flush:%llu:%p\n", size / sizeof(memfile_t), buf_base);
+	//printf("size:%d\n", sizeof(memfile_t));
+	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
+	size_t count = size / sizeof(memfile_t);
+	DR_ASSERT(size % sizeof(memfile_t) == 0);
+	fwrite(buf_base, sizeof(memfile_t), count, data->peek_trace.memfile);
 	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
@@ -218,7 +234,7 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(mem_ref_t, addr)); 
     	///* inserts size */
-	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(mem_ref_t, size));
+	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(mem_ref_t, value));
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(mem_ref_t, size));
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(mem_ref_t, status));
 
@@ -232,7 +248,7 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 		DR_ASSERT(false);
 }
 
-static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
+static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where, int mem_count)
 {
 	reg_id_t reg_ptr, reg_tmp;
 	if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_ptr) != DRREG_SUCCESS ||
@@ -244,7 +260,6 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 
 	int insn_len = instr_length(drcontext, where);
 
-
 	insert_load_buf_ptr(drcontext, ilist, where, reg_ptr);
 	insert_save_pc(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_app_pc(where));
 	insert_update_buf_ptr(drcontext, ilist, where, reg_ptr, sizeof(insn_ref_t));
@@ -254,6 +269,11 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where)
 	insert_save_regfile(drcontext, ilist, where);
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
 	drx_buf_insert_update_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(regfile_ref_t));
+
+	// ZL: insert write to store mem_count into memfile
+	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(mem_count), OPSZ_4, offsetof(memfile_t, length));
+	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(memfile_t));
 
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
 	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS)
@@ -293,19 +313,30 @@ static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrli
 	drmgr_disable_auto_predication(drcontext, bb);
 	if (!instr_is_app(instr)) return DR_EMIT_DEFAULT;
 
-	instrument_insn(drcontext, bb, instr);
 
 	/* insert code to add an entry for each memory reference opnd */
+	uint32_t mem_count = 0;
 	int i;
 	for (i = 0; i < instr_num_srcs(instr); i++) {
 		if (opnd_is_memory_reference(instr_get_src(instr, i)))
+		{
 			instrument_mem(drcontext, bb, instr, instr_get_src(instr, i), false);
+			mem_count++;
+		}
 	}
 
 	for (i = 0; i < instr_num_dsts(instr); i++) {
 		if (opnd_is_memory_reference(instr_get_dst(instr, i)))
+		{
 			instrument_mem(drcontext, bb, instr, instr_get_dst(instr, i), true);
+			mem_count++;
+		}
 	}
+
+	// ZL: would instrument the memref count (memfile) inside
+	printf("zl:%d\n", mem_count);
+	instrument_insn(drcontext, bb, instr, mem_count);
+
 
 	if (drmgr_is_first_instr(drcontext, instr) IF_AARCHXX(&& !instr_is_exclusive_store(instr)))
 		dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
@@ -397,6 +428,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
 	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
 
+	memfile_buf = drx_buf_create_trace_buffer(MEMFILE_SIZE, flush_memfile);
 	memrefs_buf = drx_buf_create_trace_buffer(MEM_REFS_SIZE, flush_memrefs);
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
