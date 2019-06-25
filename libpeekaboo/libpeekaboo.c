@@ -6,8 +6,6 @@
 
 #include "libpeekaboo.h"
 
-
-
 int create_folder(char *name, char *output, uint32_t max_size)
 {
 	DIR *dir = opendir(name);
@@ -115,23 +113,47 @@ int load_trace(char *dir_path, peekaboo_trace_t *trace)
 	return 0;
 }
 
-int write_metadata(peekaboo_trace_t *trace, enum ARCH arch, uint32_t version)
+int write_metadata(peekaboo_trace_t trace, enum ARCH arch, uint32_t version)
 {
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
-	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace->metafile);
+	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace.metafile);
 	return 0;
 }
 
-size_t get_insn_size(peekaboo_trace_t *trace)
+size_t get_insn_size(peekaboo_trace_t trace)
 {
-	// TODO: Finish implementing the function
-	size_t size;
+	size_t size = 0;
+	metadata_hdr_t meta;
+	fread(&meta, sizeof(metadata_hdr_t), 1, trace.metafile);
+	switch (meta.arch)
+	{
+		case ARCH_AMD64:
+			size = 8;
+			break;
+		case ARCH_AARCH64:
+			size = 4;
+			break;
+		default:
+			size = 0;
+			break;
+	}
+
 	return size;
 }
 
-int num_insn(peekaboo_trace_t *trace)
+size_t num_insn(peekaboo_trace_t trace)
+{
+	size_t trace_size = 0;
+	size_t insn_size = get_insn_size(trace);
+	fseek(trace.insn_trace, 0, SEEK_END);
+	trace_size = ftell(trace.insn_trace);
+	rewind(trace.insn_trace);
+	return trace_size / insn_size;
+}
+
+size_t num_regfile(peekaboo_trace_t *trace)
 {
 	size_t trace_size = 0;
 	size_t insn_size = get_insn_size(trace);
@@ -139,4 +161,20 @@ int num_insn(peekaboo_trace_t *trace)
 	trace_size = ftell(trace->insn_trace);
 	rewind(trace->insn_trace);
 	return trace_size / insn_size;
+}
+
+int load_bytes_map(peekaboo_trace_t trace, bytes_map_t *bytes_map_buf)
+{
+	size_t bytesmap_size = ftell(trace.bytes_map);
+	size_t num_maps = bytesmap_size / sizeof(bytes_map_t);
+	rewind(bytes_map);
+	printf("Found %lu instructions in bytemap...\n", num_maps);
+	bytes_map_buf = malloc(bytesmap_size);
+	if (fread(bytes_map_buf, sizeof(bytes_map_t), num_maps, bytes_map) != num_maps)
+	{
+		printf("BYTES MAP READ ERROR!\n");
+		exit(1);
+	}
+	printf("\n");
+	return 0;
 }

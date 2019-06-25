@@ -9,28 +9,7 @@
 
 #include "libpeekaboo.h"
 
-#define NUM_SIMD_SLOTS 32
-
-typedef uint64_t UINT64_T;
-
-typedef union {
-    uint64_t r;
-    uint32_t w[2];
-    uint16_t hw[4];
-    uint8_t b[8];
-} UINT64_REG_T;
-
-typedef union {
-    uint8_t b[10];
-} UINT80_T;
-
-typedef union {
-    UINT64_T r[4];
-} UINT256_T;
-
-typedef union {
-    UINT64_T r[2];
-} UINT128_T;
+#define AARCH64_NUM_SIMD_SLOTS 32
 
 /* Regfile */
 
@@ -83,7 +62,7 @@ typedef struct {
 	UINT128_T v[NUM_SIMD_SLOTS];
 } regfile_aarch64_t;
 
-void regfile_pp(regfile_aarch64_t regfile)
+void regfile_pp_aarch64(regfile_aarch64_t regfile)
 {
 	char *regname[] = {"r0", "r1", "r2", "r3", "r4", "r5",
 		           "r6", "r7", "r8", "r9", "r10", "r11",
@@ -97,33 +76,6 @@ void regfile_pp(regfile_aarch64_t regfile)
 		printf("%s:%" PRIx64 "\n", regname[x], ((UINT64_T *)&(regfile.gpr))[x]);
 	}
 }
-/* End of Regfile */
-
-
-/* Memfile */
-
-typedef struct {
-	uint64_t addr;		/* memory address */
-	uint64_t value;		/* memory value */
-	uint32_t size;		/* how many bits are vaild in value */
-	uint32_t status; 	/* 0 for Read, 1 for write */
-} mem_ref_t;
-
-typedef struct {
-	uint32_t length;	/* how many refs are there*/
-	mem_ref_t *ref;
-} memfile_aarch64_t;
-/* End of Memfile */
-
-typedef struct insn_ref {
-	uint64_t pc;
-} insn_ref_t;
-
-typedef struct {
-	uint64_t pc;
-	uint32_t size;
-	uint8_t rawbytes[16];
-} bytes_map_t ;
 
 char *arch_str = "AARCH64";
 ARCH arch = ARCH_AARCH64;

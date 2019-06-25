@@ -20,6 +20,7 @@ bytes_map_t *find_bytes_map(uint64_t pc, bytes_map_t *bytes_map_buf, size_t num_
 
 int main(int argc, char *argv[])
 {
+
 	insn_ref_t *insn_ref_buf = malloc(MEM_BUF_SIZE);
 	//regfile_ref_t *regfile_ref_buf = malloc(REG_BUF_SIZE);
 	regfile_ref_t *regfile_ref_buf = malloc(sizeof(regfile_ref_t)*MAX_NUM_REG_REFS);
@@ -27,43 +28,14 @@ int main(int argc, char *argv[])
 
 	char *trace_path = argv[1];
 
-	char insn_trace_path[256];
-	char insn_bytemap_path[256];
-	char regfile_path[256];
+	peekaboo_trace_t mytrace;
+	load_trace(sys.argv[1], &mytrace);
+	load_bytes_map(mytrace, bytes_map_buf);
 
-	snprintf(insn_trace_path, 256, "%s/insn.trace", trace_path);
-	snprintf(insn_bytemap_path, 256, "%s/insn.bytemap", trace_path);
-	snprintf(regfile_path, 256, "%s/regfile", trace_path);
-
-	printf("Opening bytes_map file : %s\n", insn_bytemap_path);
-	FILE *bytes_map = fopen(insn_bytemap_path, "r");
-	fseek(bytes_map, 0, SEEK_END);
-	size_t bytesmap_size = ftell(bytes_map);
-	size_t num_maps = bytesmap_size / sizeof(bytes_map_t);
-	rewind(bytes_map);
-	printf("Found %lu instructions in bytemap...\n", num_maps);
-	bytes_map_buf = malloc(bytesmap_size);
-	if (fread(bytes_map_buf, sizeof(bytes_map_t), num_maps, bytes_map) != num_maps)
-	{
-		printf("BYTES MAP READ ERROR!\n");
-		exit(1);
-	}
-	printf("\n");
-
-	printf("Opening trace file : %s\n", insn_trace_path);
-	FILE *insn_trace = fopen(insn_trace_path, "r");
-	fseek(insn_trace, 0, SEEK_END);
-	size_t trace_size = ftell(insn_trace);
-	rewind(insn_trace);
-	size_t num_insn = trace_size / sizeof(insn_ref_t);
+	size_t num_insn = num_insn(mytrace);
 	printf("Found %lu instructions in trace...\n", num_insn);
 
 	printf("Opening regfile file : %s\n", regfile_path);
-	FILE *regfile = fopen(regfile_path, "r");
-	fseek(regfile, 0, SEEK_END);
-	size_t regfile_size = ftell(regfile);
-	rewind(regfile);
-	size_t num_regfile = regfile_size/ sizeof(regfile_ref_t);
 	printf("Found %lu instructions in regfile...\n", num_regfile);
 
 	if (num_regfile != num_insn)
