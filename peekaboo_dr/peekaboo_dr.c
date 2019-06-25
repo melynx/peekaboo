@@ -16,10 +16,10 @@
 
 #ifdef X86
 	#ifdef X64
-		#include "arch/amd64.h"
-		typedef regfile_amd64_t regfile_ref_t;
-		typedef memfile_amd64_t memfile_t;
-		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
+		char *arch_str = "AMD64";
+		enum ARCH arch = ARCH_AMD64;
+		typedef regfile_amd64_t regfile_t;
+		void copy_regfile(regfile_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			regfile_ptr->gpr.reg_rdi = mc->rdi;
 			regfile_ptr->gpr.reg_rsi = mc->rsi;
@@ -44,13 +44,13 @@
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
 		}
 	#else
-		#include "arch/x86.h"
-		char *arch = "X86";
+		char *arch_str = "X86";
 		// TODO: Implement X86 stuff here
 	#endif
 #else
 	#ifdef X64
-		#include "arch/aarch64.h"
+		char *arch_str = "Aarch64";
+		enum ARCH arch = ARCH_AARCH64;
 		typedef regfile_aarch64_t regfile_ref_t;
 		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
 		{
@@ -58,8 +58,7 @@
 			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOTS*sizeof(regfile_ptr->v[0]));
 		}
 	#else
-		#include "arch/arm.h"
-		char *arch = "ARM";
+		char *arch_str = "ARM";
 		// TODO: Implement ARM stuff here
 	#endif
 #endif
@@ -121,12 +120,10 @@ static void flush_trace(void *drcontext)
 
 static void flush_regfile(void *drcontext, void *buf_base, size_t size)
 {
-	//printf("flush_regfile\n");
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(regfile_ref_t);
 	DR_ASSERT(size % sizeof(regfile_ref_t) == 0);
 	fwrite(buf_base, sizeof(regfile_ref_t), count, data->peek_trace.regfile);
-	//drx_buf_set_buffer_ptr(drcontext, regfile_buf, buf_base);
 }
 
 static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
@@ -311,7 +308,6 @@ static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, 
 static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 
 		                             bool for_trace, bool translating, void *user_data)
 {
-	//printf("instr!\n");
 	drmgr_disable_auto_predication(drcontext, bb);
 	if (!instr_is_app(instr)) return DR_EMIT_DEFAULT;
 
@@ -336,7 +332,6 @@ static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrli
 	}
 
 	// ZL: would instrument the memref count (memfile) inside
-	printf("zl:%d\n", mem_count);
 	instrument_insn(drcontext, bb, instr, mem_count);
 
 

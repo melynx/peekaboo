@@ -129,5 +129,3 @@ void regfile_pp_amd64(regfile_amd64_t regfile)
 }
 /* End of Regfile */
 
-char *arch_str = "AMD64";
-enum ARCH arch = ARCH_AMD64;

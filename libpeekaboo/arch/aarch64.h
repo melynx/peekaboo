@@ -76,6 +76,3 @@ void regfile_pp_aarch64(regfile_aarch64_t regfile)
 		printf("%s:%" PRIx64 "\n", regname[x], ((UINT64_T *)&(regfile.gpr))[x]);
 	}
 }
-
-char *arch_str = "AARCH64";
-ARCH arch = ARCH_AARCH64;

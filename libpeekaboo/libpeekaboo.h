@@ -5,8 +5,15 @@
 #include <stdio.h>
 #include <dirent.h>
 
+#include "arch/amd64.h"
+#include "arch/aarch64.h"
+
 #define MAX_PATH (256)
 #define LIBPEEKABOO_VER 1
+
+// Misc functions
+int create_folder(char *name, char *output, uint32_t max_size);
+// end
 
 // Bunch of type definitions for register sizes
 typedef union {
@@ -36,17 +43,6 @@ enum ARCH {
 };
 // end of type definitions
 
-// peekaboo trace definition
-typedef struct {
-	FILE *insn_trace;
-	FILE *bytes_map;
-	FILE *regfile;
-	FILE *memfile;
-	FILE *memrefs;
-	FILE *metafile;
-} peekaboo_trace_t;
-// end
-
 //-----common structure declaration-----------------------
 typedef struct {
 	uint32_t arch;
@@ -65,18 +61,18 @@ typedef struct bytes_map {
 
 typedef struct {
 	uint32_t length;	/* how many refs are there*/
-} memfile_t;
+} memref_t;
 
 typedef struct {
 	uint64_t addr;		/* memory address */
 	uint64_t value;		/* memory value */
 	uint32_t size;		/* how many bits are vaild in value */
 	uint32_t status; 	/* 0 for Read, 1 for write */
-} mem_ref_t;
+} memfile_t;
 //---------------------------------------------------------
 
 
-//------Forward declaration of supported archs-------------
+//------Supported archs declarations-----------------------
 // AMD64
 typedef struct regfile_amd64 regfile_amd64_t;
 void regfile_pp_amd64(regfile_amd64_t);
@@ -88,12 +84,31 @@ void regfile_pp_aarch64(regfile_aarch64_t);
 // end AARCH64
 //---------------------------------------------------------
 
-int create_folder(char *name, char *output, uint32_t max_size);
-int create_trace(char *name, peekaboo_trace_t *trace);
-int close_trace(peekaboo_trace_t *trace);
-int load_trace(char *, peekaboo_trace_t *);
+// peekaboo trace definition
+typedef struct {
+	FILE *insn_trace;
+	FILE *bytes_map;
+	FILE *regfile;
+	FILE *memrefs;
+	FILE *memfile;
+	FILE *metafile;
+	void *internal;
+} peekaboo_trace_t;
 
-int write_metadata(peekaboo_trace_t, enum ARCH, uint32_t);
+typedef struct {
+	insn_ref_t *insn_ref_buf;
+	bytes_map_t *bytes_map_buf;
+	void *regfile_buf;
+	memfile_t *memfile_buf;
+	memref_t *memref_buf;
+} peekaboo_internal_t;
+// end
+
+peekaboo_trace_t *create_trace(char *name);
+void close_trace(peekaboo_trace_t *trace);
+peekaboo_trace_t *load_trace(char *, peekaboo_trace_t *);
+
+void write_metadata(peekaboo_trace_t, enum ARCH, uint32_t version);
 size_t num_insn(peekaboo_trace_t);
 size_t num_regfile(peekaboo_trace_t);
 int load_bytes_map(peekaboo_trace_t, bytes_map_t *);

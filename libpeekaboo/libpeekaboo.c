@@ -57,27 +57,27 @@ int create_trace_file(char *dir_path, char *filename, int size, FILE **output)
 	return 0;
 }
 
-int close_trace(peekaboo_trace_t *trace)
+void close_trace(peekaboo_trace_t *trace_ptr)
 {
-	fflush(trace->insn_trace);
-	fflush(trace->bytes_map);
-	fflush(trace->regfile);
-	fflush(trace->memfile);
-	fflush(trace->memrefs);
-	fflush(trace->metafile);
+	fflush(trace_ptr->insn_trace);
+	fflush(trace_ptr->bytes_map);
+	fflush(trace_ptr->regfile);
+	fflush(trace_ptr->memfile);
+	fflush(trace_ptr->memrefs);
+	fflush(trace_ptr->metafile);
 
-	fclose(trace->insn_trace);
-	fclose(trace->bytes_map);
-	fclose(trace->regfile);
-	fclose(trace->memfile);
-	fclose(trace->memrefs);
-	fclose(trace->metafile);
-	return 0;
+	fclose(trace_ptr->insn_trace);
+	fclose(trace_ptr->bytes_map);
+	fclose(trace_ptr->regfile);
+	fclose(trace_ptr->memfile);
+	fclose(trace_ptr->memrefs);
+	fclose(trace_ptr->metafile);
 }
 
-int create_trace(char *name, peekaboo_trace_t *trace)
+peekaboo_trace_t *create_trace(char *name)
 {
 	char dir_path[MAX_PATH];
+	peekaboo_trace_t *trace_ptr;
 
 	if (create_folder(name, dir_path, MAX_PATH))
 	{
@@ -85,41 +85,59 @@ int create_trace(char *name, peekaboo_trace_t *trace)
 		return -1;
 	}
 
-	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace->insn_trace);
-	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace->bytes_map);
-	create_trace_file(dir_path, "regfile", MAX_PATH, &trace->regfile);
-	create_trace_file(dir_path, "memfile", MAX_PATH, &trace->memfile);
-	create_trace_file(dir_path, "memrefs", MAX_PATH, &trace->memrefs);
-	create_trace_file(dir_path, "metafile", MAX_PATH, &trace->metafile);
+	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 
-	return 0;
+	create_trace_file(dir_path, "insn.trace", MAX_PATH, trace_ptr->insn_trace);
+	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, trace_ptr->bytes_map);
+	create_trace_file(dir_path, "regfile", MAX_PATH, trace_ptr->regfile);
+	create_trace_file(dir_path, "memfile", MAX_PATH, trace_ptr->memfile);
+	create_trace_file(dir_path, "memrefs", MAX_PATH, trace_ptr->memrefs);
+	create_trace_file(dir_path, "metafile", MAX_PATH, trace_ptr->metafile);
+
+	return trace_ptr;
 }
 
-int load_trace(char *dir_path, peekaboo_trace_t *trace)
+peekaboo_trace_t *load_trace(char *dir_path)
 {
+	peekaboo_trace_t *trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 	char path[MAX_PATH];
+
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
-	trace->insn_trace = fopen(path, "rb");
+	trace_ptr->insn_trace = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
-	trace->bytes_map = fopen(path, "rb");
+	trace_ptr->bytes_map = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");
-	trace->regfile = fopen(path, "rb");
+	trace_ptr->regfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
-	trace->memfile = fopen(path, "rb");
+	trace_ptr->memfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs");
-	trace->memfile = fopen(path, "rb");
+	trace_ptr->memfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
-	trace->metafile = fopen(path, "rb");
-	return 0;
+	trace_ptr->metafile = fopen(path, "rb");
+
+	// check the metadata
+	metadata_hdr_t metadata;
+	fread(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
+	switch(metadata)
+	{
+		case AMD64:
+			break;
+		case AARCH64:
+			break;
+		default:
+			break;
+	}
+	
+
+	return trace_ptr;
 }
 
-int write_metadata(peekaboo_trace_t trace, enum ARCH arch, uint32_t version)
+void write_metadata(peekaboo_trace_t trace, enum ARCH arch, uint32_t version)
 {
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace.metafile);
-	return 0;
 }
 
 size_t get_insn_size(peekaboo_trace_t trace)
