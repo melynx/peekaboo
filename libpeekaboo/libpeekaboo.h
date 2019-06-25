@@ -5,15 +5,8 @@
 #include <stdio.h>
 #include <dirent.h>
 
-#include "arch/amd64.h"
-#include "arch/aarch64.h"
-
 #define MAX_PATH (256)
 #define LIBPEEKABOO_VER 1
-
-// Misc functions
-int create_folder(char *name, char *output, uint32_t max_size);
-// end
 
 // Bunch of type definitions for register sizes
 typedef union {
@@ -42,6 +35,10 @@ enum ARCH {
 	ARCH_AMD64
 };
 // end of type definitions
+
+// Misc functions
+int create_folder(char *name, char *output, uint32_t max_size);
+// end
 
 //-----common structure declaration-----------------------
 typedef struct {
@@ -73,15 +70,8 @@ typedef struct {
 
 
 //------Supported archs declarations-----------------------
-// AMD64
-typedef struct regfile_amd64 regfile_amd64_t;
-void regfile_pp_amd64(regfile_amd64_t);
-// end AMD64
-
-// AARCH64
-typedef struct regfile_aarch64 regfile_aarch64_t;
-void regfile_pp_aarch64(regfile_aarch64_t);
-// end AARCH64
+#include "arch/amd64.h"
+#include "arch/aarch64.h"
 //---------------------------------------------------------
 
 // peekaboo trace definition
@@ -106,11 +96,11 @@ typedef struct {
 
 peekaboo_trace_t *create_trace(char *name);
 void close_trace(peekaboo_trace_t *trace);
-peekaboo_trace_t *load_trace(char *, peekaboo_trace_t *);
+peekaboo_trace_t *load_trace(char *);
 
 void write_metadata(peekaboo_trace_t, enum ARCH, uint32_t version);
-size_t num_insn(peekaboo_trace_t);
-size_t num_regfile(peekaboo_trace_t);
-int load_bytes_map(peekaboo_trace_t, bytes_map_t *);
+//size_t num_insn(peekaboo_trace_t);
+//size_t num_regfile(peekaboo_trace_t);
+//int load_bytes_map(peekaboo_trace_t, bytes_map_t *);
 
 #endif

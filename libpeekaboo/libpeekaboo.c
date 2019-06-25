@@ -82,17 +82,17 @@ peekaboo_trace_t *create_trace(char *name)
 	if (create_folder(name, dir_path, MAX_PATH))
 	{
 		fprintf(stderr, "Unable to create directory %s.\n", name);
-		return -1;
+		return NULL;
 	}
 
 	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 
-	create_trace_file(dir_path, "insn.trace", MAX_PATH, trace_ptr->insn_trace);
-	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, trace_ptr->bytes_map);
-	create_trace_file(dir_path, "regfile", MAX_PATH, trace_ptr->regfile);
-	create_trace_file(dir_path, "memfile", MAX_PATH, trace_ptr->memfile);
-	create_trace_file(dir_path, "memrefs", MAX_PATH, trace_ptr->memrefs);
-	create_trace_file(dir_path, "metafile", MAX_PATH, trace_ptr->metafile);
+	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace_ptr->insn_trace);
+	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace_ptr->bytes_map);
+	create_trace_file(dir_path, "regfile", MAX_PATH, &trace_ptr->regfile);
+	create_trace_file(dir_path, "memfile", MAX_PATH, &trace_ptr->memfile);
+	create_trace_file(dir_path, "memrefs", MAX_PATH, &trace_ptr->memrefs);
+	create_trace_file(dir_path, "metafile", MAX_PATH, &trace_ptr->metafile);
 
 	return trace_ptr;
 }
@@ -115,20 +115,6 @@ peekaboo_trace_t *load_trace(char *dir_path)
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
 	trace_ptr->metafile = fopen(path, "rb");
 
-	// check the metadata
-	metadata_hdr_t metadata;
-	fread(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
-	switch(metadata)
-	{
-		case AMD64:
-			break;
-		case AARCH64:
-			break;
-		default:
-			break;
-	}
-	
-
 	return trace_ptr;
 }
 
@@ -140,6 +126,7 @@ void write_metadata(peekaboo_trace_t trace, enum ARCH arch, uint32_t version)
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace.metafile);
 }
 
+/*
 size_t get_insn_size(peekaboo_trace_t trace)
 {
 	size_t size = 0;
@@ -196,3 +183,5 @@ int load_bytes_map(peekaboo_trace_t trace, bytes_map_t *bytes_map_buf)
 	printf("\n");
 	return 0;
 }
+*/
+

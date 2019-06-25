@@ -1,12 +1,13 @@
 /*! @file
  *  this file is the x86-64 regfile structure & memfile structure.
  */
+#ifndef __LIBPEEKABOO_AMD64_H__
+#define __LIBPEEKABOO_AMD64_H__
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
-
-#include "libpeekaboo.h"
+#include <inttypes.h>
 
 #define AMD64_NUM_SIMD_SLOTS 16
 
@@ -31,7 +32,7 @@ typedef struct {
 	uint64_t reg_r15;
 	uint64_t reg_rflags;
 	uint64_t reg_rip;
-} cpu_gr_t;
+} amd64_cpu_gr_t;
 
 typedef struct {
 	uint64_t reg_cs;
@@ -40,39 +41,39 @@ typedef struct {
 	uint64_t reg_es;
 	uint64_t reg_fs;
 	uint64_t reg_gs;
-} cpu_seg_t;
+} amd64_cpu_seg_t;
 
 typedef struct {
-    //  simd: avx2
-    uint256_t ymm0;
-    uint256_t ymm1;
-    uint256_t ymm2;
-    uint256_t ymm3;
-    uint256_t ymm4;
-    uint256_t ymm5;
-    uint256_t ymm6;
-    uint256_t ymm7;
-    uint256_t ymm8;
-    uint256_t ymm9;
-    uint256_t ymm10;
-    uint256_t ymm11;
-    uint256_t ymm12;
-    uint256_t ymm13;
-    uint256_t ymm14;
-    uint256_t ymm15;
-} cpu_simd_t;
+	//  simd: avx2
+	uint256_t ymm0;
+	uint256_t ymm1;
+	uint256_t ymm2;
+	uint256_t ymm3;
+	uint256_t ymm4;
+	uint256_t ymm5;
+	uint256_t ymm6;
+	uint256_t ymm7;
+	uint256_t ymm8;
+	uint256_t ymm9;
+	uint256_t ymm10;
+	uint256_t ymm11;
+	uint256_t ymm12;
+	uint256_t ymm13;
+	uint256_t ymm14;
+	uint256_t ymm15;
+} amd64_cpu_simd_t;
 
 typedef struct {
-    // fp registers
-     uint80_t reg_st0;
-     uint80_t reg_st1;
-     uint80_t reg_st2;
-     uint80_t reg_st3;
-     uint80_t reg_st4;
-     uint80_t reg_st5;
-     uint80_t reg_st6;
-     uint80_t reg_st7;
-} cpu_st_t;
+	// fp registers
+	uint80_t reg_st0;
+	uint80_t reg_st1;
+	uint80_t reg_st2;
+	uint80_t reg_st3;
+	uint80_t reg_st4;
+	uint80_t reg_st5;
+	uint80_t reg_st6;
+	uint80_t reg_st7;
+} amd64_cpu_st_t;
 
 typedef struct {
 	uint16_t fcw;  // FPU control word
@@ -93,39 +94,15 @@ typedef struct {
 	uint8_t padding[96]; // 416 Bytes are used. The total area should be 512 bytes.
 } __attribute__((packed)) fxsave_area_t;
 
-typedef struct {
-	cpu_gr_t 	gpr;
-	cpu_simd_t 	simd;
-	cpu_seg_t 	seg;
-	cpu_st_t 	fpr;
-	fxsave_area_t	fxsave;
+typedef struct regfile_amd64{
+	amd64_cpu_gr_t gpr;
+	amd64_cpu_simd_t simd;
+	amd64_cpu_seg_t seg;
+	amd64_cpu_st_t fpr;
+	fxsave_area_t fxsave;
 } regfile_amd64_t;
 
-void regfile_pp_amd64(regfile_amd64_t regfile)
-{
-	char *gpr_string[] = {"rdi",
-	                     "rsi",
-	                     "rsp",
-	                     "rbp",
-	                     "rbx",
-	                     "rdx",
-	                     "rcx",
-	                     "rax",
-	                     "r8",
-	                     "r9",
-	                     "r10",
-	                     "r11",
-	                     "r12",
-	                     "r13",
-	                     "r14",
-	                     "r15",
-	                     "rflags",
-	                     "rip"};
-
-	for (int x=0; x<18; x++)
-	{
-		printf("%s:%" PRIx64 "\n", gpr_string[x], ((UINT64_T *)&(regfile.gpr))[x]);
-	}
-}
+void amd64_regfile_pp(regfile_amd64_t regfile);
 /* End of Regfile */
 
+#endif

@@ -49,7 +49,7 @@
 	#endif
 #else
 	#ifdef X64
-		char *arch_str = "Aarch64";
+		char *arch_str = "AArch64";
 		enum ARCH arch = ARCH_AARCH64;
 		typedef regfile_aarch64_t regfile_ref_t;
 		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
@@ -58,31 +58,29 @@
 			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOTS*sizeof(regfile_ptr->v[0]));
 		}
 	#else
-		char *arch_str = "ARM";
+		char *arch_str = "AArch32";
 		// TODO: Implement ARM stuff here
 	#endif
 #endif
 
 #define MAX_NUM_INS_REFS 8192
-#define MEM_BUF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
+#define INSN_REF_SIZE (sizeof(insn_ref_t) * MAX_NUM_INS_REFS)
 
 #define MAX_NUM_REG_REFS 8192
-#define REG_BUF_SIZE (sizeof(regfile_ref_t) * MAX_NUM_REG_REFS)
+#define REG_BUF_SIZE (sizeof(regfile_t) * MAX_NUM_REG_REFS)
 
 #define MAX_NUM_MEM_REFS 8192
-#define MEM_REFS_SIZE (sizeof(mem_ref_t) * MAX_NUM_MEM_REFS)
+#define MEM_REFS_SIZE (sizeof(memref_t) * MAX_NUM_MEM_REFS)
 
 #define MAX_NUM_MEM_REFS 8192
 #define MEMFILE_SIZE (sizeof(memfile_t) * MAX_NUM_MEM_REFS)
 
 #define MAX_NUM_BYTES_MAP 128
-#define MAX_BYTES_MAP_SIZE (sizeof(insn_ref_t) * MAX_NUM_BYTES_MAP)
+#define MAX_BYTES_MAP_SIZE (sizeof(bytes_map_t) * MAX_NUM_BYTES_MAP)
 
 
 typedef struct {
-	byte *seg_base;
-	insn_ref_t *buf_base;
-	peekaboo_trace_t peek_trace;
+	peekaboo_trace_t *peek_trace;
 	uint64_t num_refs;
 } per_thread_t;
 
@@ -95,35 +93,28 @@ enum {
     INSTRACE_TLS_COUNT, /* total number of TLS slots allocated */
 };
 
-static reg_id_t tls_seg;
-static uint tls_offs;
 static int tls_idx;
-#define TLS_SLOT(tls_base, enum_val) (void **)((byte *)(tls_base) + tls_offs + (enum_val))
-#define CUR_BUF_PTR(tls_base) *(insn_ref_t **)TLS_SLOT(tls_base, INSTRACE_TLS_OFFS_BUF_PTR)
 
+static drx_buf_t *insn_ref_buf;
 static drx_buf_t *bytes_map_buf;
 static drx_buf_t *regfile_buf;
 static drx_buf_t *memrefs_buf;
 static drx_buf_t *memfile_buf;
 
-static void flush_trace(void *drcontext)
+static void flush_insnrefs(void *drcontext, void *buf_base, size_t size)
 {
-	per_thread_t *data;
-	insn_ref_t *buf_ptr;
-	data = drmgr_get_tls_field(drcontext, tls_idx);
-	buf_ptr = CUR_BUF_PTR(data->seg_base);
-	int num_insn = (buf_ptr - data->buf_base);
-	fwrite(data->buf_base, sizeof(insn_ref_t), num_insn, data->peek_trace.insn_trace);
-	data->num_refs += num_insn;
-	CUR_BUF_PTR(data->seg_base) = data->buf_base;
+	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
+	size_t count = size / sizeof(insn_ref_t);
+	DR_ASSERT(size % sizeof(insn_ref_t) == 0);
+	fwrite(buf_base, sizeof(insn_ref_t), count, data->peek_trace->insn_trace);
 }
 
 static void flush_regfile(void *drcontext, void *buf_base, size_t size)
 {
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
-	size_t count = size / sizeof(regfile_ref_t);
-	DR_ASSERT(size % sizeof(regfile_ref_t) == 0);
-	fwrite(buf_base, sizeof(regfile_ref_t), count, data->peek_trace.regfile);
+	size_t count = size / sizeof(regfile_t);
+	DR_ASSERT(size % sizeof(regfile_t) == 0);
+	fwrite(buf_base, sizeof(regfile_t), count, data->peek_trace->regfile);
 }
 
 static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
@@ -131,9 +122,9 @@ static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
 	//printf("flush:%llu:%p\n", size / sizeof(mem_ref_t), buf_base);
 	//printf("size:%d\n", sizeof(mem_ref_t));
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
-	size_t count = size / sizeof(mem_ref_t);
-	DR_ASSERT(size % sizeof(mem_ref_t) == 0);
-	fwrite(buf_base, sizeof(mem_ref_t), count, data->peek_trace.memrefs);
+	size_t count = size / sizeof(memref_t);
+	DR_ASSERT(size % sizeof(memref_t) == 0);
+	fwrite(buf_base, sizeof(memref_t), count, data->peek_trace->memrefs);
 	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
@@ -144,7 +135,7 @@ static void flush_memfile(void *drcontext, void *buf_base, size_t size)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(memfile_t);
 	DR_ASSERT(size % sizeof(memfile_t) == 0);
-	fwrite(buf_base, sizeof(memfile_t), count, data->peek_trace.memfile);
+	fwrite(buf_base, sizeof(memfile_t), count, data->peek_trace->memfile);
 	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
@@ -153,57 +144,26 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(bytes_map_t);
 	DR_ASSERT(size % sizeof(bytes_map_t) == 0);
-	fwrite(buf_base, sizeof(bytes_map_t), count, data->peek_trace.bytes_map);
-}
-
-static void save_insn(void)
-{
-	void *drcontext = dr_get_current_drcontext();
-	flush_trace(drcontext);
-}
-
-static void insert_load_buf_ptr(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr)
-{
-	dr_insert_read_raw_tls(drcontext, ilist, where, tls_seg, tls_offs + INSTRACE_TLS_OFFS_BUF_PTR, reg_ptr);
-}
-
-static void insert_update_buf_ptr(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, int adjust)
-{
-	instr_t *add_offset = XINST_CREATE_add(drcontext, opnd_create_reg(reg_ptr), OPND_CREATE_INT16(adjust));
-	instrlist_meta_preinsert(ilist, where, add_offset);
-	dr_insert_write_raw_tls(drcontext, ilist, where, tls_seg, tls_offs + INSTRACE_TLS_OFFS_BUF_PTR, reg_ptr);
-}
-
-static void insert_save_pc(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t base, reg_id_t scratch, app_pc pc)
-{
-	instrlist_insert_mov_immed_ptrsz(drcontext, (ptr_int_t)pc, opnd_create_reg(scratch), ilist, where, NULL, NULL);
-	instr_t *store_pc = XINST_CREATE_store(drcontext, OPND_CREATE_MEMPTR(base, offsetof(insn_ref_t, pc)), opnd_create_reg(scratch));
-	instrlist_meta_preinsert(ilist, where, store_pc);
+	fwrite(buf_base, sizeof(bytes_map_t), count, data->peek_trace->bytes_map);
 }
 
 static void save_regfile(void)
 {
 	void *drcontext = dr_get_current_drcontext();
-	regfile_ref_t *regfile_ptr;
-	regfile_ptr = (regfile_ref_t *) drx_buf_get_buffer_ptr(drcontext, regfile_buf);
+	regfile_t *regfile_ptr;
+	regfile_ptr = (regfile_t *) drx_buf_get_buffer_ptr(drcontext, regfile_buf);
 
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
-
 	copy_regfile(regfile_ptr, &mc);
 
-	void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
-	uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
-	uint64_t count = size/sizeof(regfile_ref_t);
-	uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
-	//printf("bufsize:%d\n", buf_size);
-	//printf("size:%d\n", size);
-	//printf("base_ptr:%p\n", base);
-	//printf("buf_ptr:%p\n", regfile_ptr);
-	//printf("count:%d\n", count);
-	mem_ref_t *mem_ref_ptr = (mem_ref_t *)drx_buf_get_buffer_ptr(drcontext, memrefs_buf);
-	mem_ref_t *mem_ref_base = (mem_ref_t *)drx_buf_get_buffer_base(drcontext, memrefs_buf);
-	size = (uint64_t)mem_ref_ptr - (uint64_t)mem_ref_base;
+	//void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
+	//uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
+	//uint64_t count = size/sizeof(regfile_ref_t);
+	//uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
+	//mem_ref_t *mem_ref_ptr = (mem_ref_t *)drx_buf_get_buffer_ptr(drcontext, memrefs_buf);
+	//mem_ref_t *mem_ref_base = (mem_ref_t *)drx_buf_get_buffer_base(drcontext, memrefs_buf);
+	//size = (uint64_t)mem_ref_ptr - (uint64_t)mem_ref_base;
 	//printf("memref_ptr:%p\n", mem_ref_ptr);
 	//printf("memref_size:%d\n", size);
 	//printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
@@ -211,7 +171,6 @@ static void save_regfile(void)
 
 static void insert_save_regfile(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
-	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
 }
 
 static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, opnd_t ref, bool write)
@@ -225,19 +184,16 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 		DR_ASSERT(false); /* cannot recover */
 		return;
 	}
-	/* save_addr should be called first as reg_ptr or reg_tmp maybe used in ref */
-	// app_pc pc = instr_get_app_pc(where);
+
 	uint32_t size = drutil_opnd_mem_size_in_bytes(ref, where);
 	drutil_insert_get_mem_addr(drcontext, ilist, where, ref, reg_tmp, reg_ptr);
 
-	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(mem_ref_t, addr)); 
-    	///* inserts size */
-	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(mem_ref_t, value));
-	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(mem_ref_t, size));
-	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(mem_ref_t, status));
-
-	drx_buf_insert_update_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, sizeof(mem_ref_t));
+	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(memfile_t, addr)); 
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(memfile_t, value));
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(memfile_t, size));
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(memfile_t, status));
+	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, sizeof(memfile_t));
 
 	//printf("sizesize:%d\n", size);
 	//disassemble_with_info(drcontext, instr_get_app_pc(where), 0, true, true);
@@ -258,21 +214,28 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	}
 
 	int insn_len = instr_length(drcontext, where);
+	app_pc pc = instr_get_app_pc(where);
 
-	insert_load_buf_ptr(drcontext, ilist, where, reg_ptr);
-	insert_save_pc(drcontext, ilist, where, reg_ptr, reg_tmp, instr_get_app_pc(where));
-	insert_update_buf_ptr(drcontext, ilist, where, reg_ptr, sizeof(insn_ref_t));
+	// instrument update to insn_ref, pushes a 64bit pc into the buffer
+	drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
+	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_4, 0);
+	drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
+
 	// ZL: insert a write 0 into the stream using dynamorio sanctioned instruction to trigger the flushing of file from trace buffer.
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(regfile_ref_t, gpr));
-	insert_save_regfile(drcontext, ilist, where);
-	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
-	drx_buf_insert_update_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(regfile_ref_t));
+	drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(regfile_t, gpr));
+
 
 	// ZL: insert write to store mem_count into memfile
-	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(mem_count), OPSZ_4, offsetof(memfile_t, length));
-	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(memfile_t));
+	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
+	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(mem_count), OPSZ_4, offsetof(memref_t, length));
+	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(memref_t));
+
+	// instruments a clean call to save the register info
+	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
+	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
+	drx_buf_insert_update_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(regfile_t));
+
 
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
 	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS)
@@ -280,9 +243,8 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 }
 
 
-static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, bool for_trace, bool translating, void **user_data)
+static dr_emit_flags_t save_bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, bool for_trace, bool translating, void **user_data)
 {
-	//printf("bb!\n");
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	bytes_map_t bytes_map[MAX_NUM_BYTES_MAP];
 	uint idx=0;
@@ -300,17 +262,15 @@ static dr_emit_flags_t bb_rawbytes(void *drcontext, void *tag, instrlist_t *bb, 
 		}
 	}
 
-	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace.bytes_map);
-	//printf("write\n");
+	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace->bytes_map);
 	return DR_EMIT_DEFAULT;
 }
 
-static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 
+static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 
 		                             bool for_trace, bool translating, void *user_data)
 {
 	drmgr_disable_auto_predication(drcontext, bb);
 	if (!instr_is_app(instr)) return DR_EMIT_DEFAULT;
-
 
 	/* insert code to add an entry for each memory reference opnd */
 	uint32_t mem_count = 0;
@@ -335,8 +295,8 @@ static dr_emit_flags_t event_app_instruction(void *drcontext, void *tag, instrli
 	instrument_insn(drcontext, bb, instr, mem_count);
 
 
-	if (drmgr_is_first_instr(drcontext, instr) IF_AARCHXX(&& !instr_is_exclusive_store(instr)))
-		dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
+	//if (drmgr_is_first_instr(drcontext, instr) IF_AARCHXX(&& !instr_is_exclusive_store(instr)))
+	//	dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
 	
 	return DR_EMIT_DEFAULT;
 }
@@ -348,32 +308,23 @@ static void event_thread_init(void *drcontext)
 	DR_ASSERT(data != NULL);
 	drmgr_set_tls_field(drcontext, tls_idx, data);
 
-	data->seg_base = dr_get_dr_segment_base(tls_seg);
-	data->buf_base = dr_raw_mem_alloc(MEM_BUF_SIZE, DR_MEMPROT_READ | DR_MEMPROT_WRITE, NULL);
-	DR_ASSERT(data->seg_base != NULL && data->buf_base != NULL);
-
-	CUR_BUF_PTR(data->seg_base) = data->buf_base;
-
 	int pid = dr_get_process_id();
 	int tid = dr_get_thread_id(drcontext);
 	snprintf(buf, 256, "%s-%d-%d", dr_get_application_name(), pid, tid);
 
 	data->num_refs = 0;
-	create_trace(buf, &data->peek_trace);
+	data->peek_trace = create_trace(buf);
 	printf("Created trace : %s\n", buf);
 }
 
 static void event_thread_exit(void *drcontext)
 {
 	per_thread_t *data;
-	flush_trace(drcontext);
-	//flush_regfile_manual(drcontext);
 	data = drmgr_get_tls_field(drcontext, tls_idx);
 	dr_mutex_lock(mutex);
 	num_refs += data->num_refs;
-	close_trace(&data->peek_trace);
+	close_trace(data->peek_trace);
 	dr_mutex_unlock(mutex);
-	dr_raw_mem_free(data->buf_base, MEM_BUF_SIZE);
 	dr_thread_free(drcontext, data, sizeof(per_thread_t));
 }
 
@@ -382,12 +333,11 @@ static void event_exit(void)
 	//dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
 	printf("'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
 
-	if (!dr_raw_tls_cfree(tls_offs, INSTRACE_TLS_COUNT)) DR_ASSERT(false);
 
 	if (!drmgr_unregister_tls_field(tls_idx) ||
 	    !drmgr_unregister_thread_init_event(event_thread_init) ||
 	    !drmgr_unregister_thread_exit_event(event_thread_exit) ||
-	    !drmgr_unregister_bb_insertion_event(event_app_instruction) ||
+	    !drmgr_unregister_bb_insertion_event(per_insn_instrument) ||
 	    drreg_exit() != DRREG_SUCCESS)
 	    DR_ASSERT(false);
 
@@ -397,6 +347,8 @@ static void event_exit(void)
 
 	drx_buf_free(regfile_buf);
 	drx_buf_free(memrefs_buf);
+	drx_buf_free(memfile_buf);
+	drx_buf_free(insn_ref_buf);
 
 	drx_exit();
 }
@@ -415,7 +367,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
-	drmgr_register_bb_instrumentation_event(bb_rawbytes, event_app_instruction, NULL);
+	drmgr_register_bb_instrumentation_event(save_bb_rawbytes, per_insn_instrument, NULL);
 
 	client_id = id;
 	mutex = dr_mutex_create();
@@ -423,8 +375,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	tls_idx = drmgr_register_tls_field();
 	DR_ASSERT(tls_idx != -1);
 
-	if (!dr_raw_tls_calloc(&tls_seg, &tls_offs, INSTRACE_TLS_COUNT, 0)) DR_ASSERT(false);
-
+	insn_ref_buf = drx_buf_create_trace_buffer(INSN_REF_SIZE, flush_insnrefs);
 	memfile_buf = drx_buf_create_trace_buffer(MEMFILE_SIZE, flush_memfile);
 	memrefs_buf = drx_buf_create_trace_buffer(MEM_REFS_SIZE, flush_memrefs);
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
@@ -433,11 +384,11 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	printf("%s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Binary being traced: %s\n", dr_get_application_name());
-	printf("REGFILE_BUF = %p\n", regfile_buf);
-	printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
-	printf("Sizeof regfile: %lu\n", sizeof(regfile_ref_t));
-	printf("sizeof reg_t:%lu\n", sizeof(reg_t));
-	printf("sizeof dr_mcontext_t:%lu\n", sizeof(dr_mcontext_t));
+	//printf("REGFILE_BUF = %p\n", regfile_buf);
+	//printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
+	//printf("Sizeof regfile: %lu\n", sizeof(regfile_ref_t));
+	//printf("sizeof reg_t:%lu\n", sizeof(reg_t));
+	//printf("sizeof dr_mcontext_t:%lu\n", sizeof(dr_mcontext_t));
 	printf("Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }

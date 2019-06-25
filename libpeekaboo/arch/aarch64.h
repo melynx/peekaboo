@@ -1,6 +1,8 @@
 /*! @file
  *  this file is the aarch64 regfile structure & memfile structure.
  */
+#ifndef __LIBPEEKABOO_AARCH64_H__
+#define __LIBPEEKABOO_AARCH64_H__
 
 #include <stdio.h>
 #include <stdint.h>
@@ -55,24 +57,13 @@ typedef struct {
 	uint32_t nzcv; /**< Condition flags (status register). */
 	uint32_t fpcr; /**< Floating-Point Control Register. */
 	uint32_t fpsr; /**< Floating-Point Status Register. */
-} CPU_GR_T;
+} aarch64_cpu_gr_t;
 
-typedef struct {
-	CPU_GR_T 	gpr;
-	UINT128_T v[NUM_SIMD_SLOTS];
+typedef struct regfile_aarch64 {
+	aarch64_cpu_gr_t gpr;
+	uint128_t v[AARCH64_NUM_SIMD_SLOTS];
 } regfile_aarch64_t;
 
-void regfile_pp_aarch64(regfile_aarch64_t regfile)
-{
-	char *regname[] = {"r0", "r1", "r2", "r3", "r4", "r5",
-		           "r6", "r7", "r8", "r9", "r10", "r11",
-		           "r12", "r13", "r14", "r15", "r16", "r17",
-		           "r18", "r19", "r20", "r21", "r22", "r23",
-		           "r24", "r25", "r26", "r27", "r28", "r29",
-		           "lr", "sp", "pc", "nzcv", "fpcr", "fpsr"};
+void aarch64_regfile_pp(regfile_aarch64_t regfile);
 
-	for (int x=0; x<31; x++)
-	{
-		printf("%s:%" PRIx64 "\n", regname[x], ((UINT64_T *)&(regfile.gpr))[x]);
-	}
-}
+#endif
