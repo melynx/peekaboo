@@ -51,10 +51,10 @@
 	#ifdef X64
 		char *arch_str = "AArch64";
 		enum ARCH arch = ARCH_AARCH64;
-		typedef regfile_aarch64_t regfile_ref_t;
-		void copy_regfile(regfile_ref_t *regfile_ptr, dr_mcontext_t *mc)
+		typedef regfile_aarch64_t regfile_t;
+		void copy_regfile(regfile_t *regfile_ptr, dr_mcontext_t *mc)
 		{
-			memcpy(&regfile_ptr->r0, &mc->r0, 33*8 + 3*4);
+			memcpy(&regfile_ptr->gpr, &mc->r0, 33*8 + 3*4);
 			memcpy(&regfile_ptr->v, &mc->simd, MCXT_NUM_SIMD_SLOTS*sizeof(regfile_ptr->v[0]));
 		}
 	#else
