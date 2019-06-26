@@ -169,10 +169,6 @@ static void save_regfile(void)
 	//printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
 }
 
-static void insert_save_regfile(void *drcontext, instrlist_t *ilist, instr_t *where)
-{
-}
-
 static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, opnd_t ref, bool write)
 {
 	/* We need two scratch registers */
@@ -218,7 +214,7 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 
 	// instrument update to insn_ref, pushes a 64bit pc into the buffer
 	drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_4, 0);
+	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, 0);
 	drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
 
 	// ZL: insert a write 0 into the stream using dynamorio sanctioned instruction to trigger the flushing of file from trace buffer.
@@ -226,10 +222,10 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(regfile_t, gpr));
 
 
-	// ZL: insert write to store mem_count into memfile
+	// ZL: insert write to store mem_count into memrefs
 	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memrefs_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(mem_count), OPSZ_4, offsetof(memref_t, length));
-	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(memref_t));
+	drx_buf_insert_update_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(memref_t));
 
 	// instruments a clean call to save the register info
 	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
