@@ -118,12 +118,12 @@ peekaboo_trace_t *load_trace(char *dir_path)
 	return trace_ptr;
 }
 
-void write_metadata(peekaboo_trace_t trace, enum ARCH arch, uint32_t version)
+void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t version)
 {
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
-	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace.metafile);
+	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 }
 
 /*

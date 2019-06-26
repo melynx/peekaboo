@@ -88,11 +88,6 @@ static client_id_t client_id;
 static void *mutex;     /* for multithread support */
 static uint64 num_refs; /* keep a global instruction reference count */
 
-enum {
-    INSTRACE_TLS_OFFS_BUF_PTR,
-    INSTRACE_TLS_COUNT, /* total number of TLS slots allocated */
-};
-
 static int tls_idx;
 
 static drx_buf_t *insn_ref_buf;
@@ -107,6 +102,7 @@ static void flush_insnrefs(void *drcontext, void *buf_base, size_t size)
 	size_t count = size / sizeof(insn_ref_t);
 	DR_ASSERT(size % sizeof(insn_ref_t) == 0);
 	fwrite(buf_base, sizeof(insn_ref_t), count, data->peek_trace->insn_trace);
+	data->num_refs += count;
 }
 
 static void flush_regfile(void *drcontext, void *buf_base, size_t size)
@@ -119,24 +115,18 @@ static void flush_regfile(void *drcontext, void *buf_base, size_t size)
 
 static void flush_memrefs(void *drcontext, void *buf_base, size_t size)
 {
-	//printf("flush:%llu:%p\n", size / sizeof(mem_ref_t), buf_base);
-	//printf("size:%d\n", sizeof(mem_ref_t));
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(memref_t);
 	DR_ASSERT(size % sizeof(memref_t) == 0);
 	fwrite(buf_base, sizeof(memref_t), count, data->peek_trace->memrefs);
-	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
 static void flush_memfile(void *drcontext, void *buf_base, size_t size)
 {
-	//printf("flush:%llu:%p\n", size / sizeof(memfile_t), buf_base);
-	//printf("size:%d\n", sizeof(memfile_t));
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
 	size_t count = size / sizeof(memfile_t);
 	DR_ASSERT(size % sizeof(memfile_t) == 0);
 	fwrite(buf_base, sizeof(memfile_t), count, data->peek_trace->memfile);
-	//drx_buf_set_buffer_ptr(drcontext, memrefs_buf, buf_base);
 }
 
 static void flush_map(void *drcontext, void *buf_base, size_t size)
@@ -310,7 +300,10 @@ static void event_thread_init(void *drcontext)
 
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
+	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
 	printf("Created trace : %s\n", buf);
+	printf("Arch: %d\n", arch);
+	printf("libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
 }
 
 static void event_thread_exit(void *drcontext)

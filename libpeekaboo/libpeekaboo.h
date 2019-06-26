@@ -98,7 +98,7 @@ peekaboo_trace_t *create_trace(char *name);
 void close_trace(peekaboo_trace_t *trace);
 peekaboo_trace_t *load_trace(char *);
 
-void write_metadata(peekaboo_trace_t, enum ARCH, uint32_t version);
+void write_metadata(peekaboo_trace_t *, enum ARCH, uint32_t version);
 //size_t num_insn(peekaboo_trace_t);
 //size_t num_regfile(peekaboo_trace_t);
 //int load_bytes_map(peekaboo_trace_t, bytes_map_t *);
