@@ -72,7 +72,7 @@ class RegFileAMD64(Structure):
 
 
 
-ARCH_REGFILE = {0:None, 1:None, 2:None, 3:RegFileAMD64}
+ARCH_INFO = {0:None, 1:None, 2:None, 3:(RegFileAMD64, "AMD64")}
 
 class Metadata(Structure):
     _fields_ = [('arch', c_uint32), ('version', c_uint32)]
@@ -156,7 +156,7 @@ class PyPeekaboo(object):
 
         # parse metafile
         metadata = read_struct(self.metafile, Metadata)
-        self.regfile_struct = ARCH_REGFILE[metadata.arch]
+        self.regfile_struct, self.arch_str = ARCH_INFO[metadata.arch]
 
         self.memrefs_offsets = self.load_memrefs_offsets(trace_path)
         self.num_insn = os.path.getsize(insn_trace_path) / sizeof(InsnRef)
@@ -172,6 +172,7 @@ class PyPeekaboo(object):
         if not os.path.isfile(memrefs_offsets_path):
             # memfile offsets for each insn does not exist, create them
             # generate the memfile offsets
+            print("{} does not contain the cached offsets to memfile, generating...".format(trace_path))
             with open(memrefs_offsets_path, 'wb') as offset_file:
                 cur_offset = 0
                 memfile_offsets = []
