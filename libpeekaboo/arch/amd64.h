@@ -97,8 +97,6 @@ typedef struct {
 typedef struct regfile_amd64{
 	amd64_cpu_gr_t gpr;
 	amd64_cpu_simd_t simd;
-	amd64_cpu_seg_t seg;
-	amd64_cpu_st_t fpr;
 	fxsave_area_t fxsave;
 } regfile_amd64_t;
 
