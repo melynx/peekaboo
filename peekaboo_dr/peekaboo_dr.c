@@ -42,6 +42,9 @@
 
 			// here, we cast the simd structure into an array of uint256_t
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
+
+			// here we'll call fxsave, that saves into the fxsave area.
+			proc_save_fpstate((byte *)&regfile_ptr->fxsave);
 		}
 	#else
 		char *arch_str = "X86";
