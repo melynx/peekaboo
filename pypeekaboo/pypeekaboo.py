@@ -1,5 +1,6 @@
 import os
 import sys
+import struct
 
 from ctypes import Structure, c_uint64, c_uint32, c_uint8, sizeof
 
@@ -40,6 +41,15 @@ typedef struct {
 class MemFile(Structure):
     _fields_ = [('addr', c_uint64), ('value', c_uint64), ('size', c_uint32), ('status', c_uint32)]
 
+
+class TraceInsn(object):
+    def __init__(self):
+        pass
+
+class MemInfo(object):
+    def __init__(self):
+        pass
+
 class PyPeekaboo(object):
     def __init__(self, trace_path):
         # ensure that path points to a directory...
@@ -66,6 +76,7 @@ class PyPeekaboo(object):
         self.memrefs = open(memrefs_path, 'rb')
         self.metafile = open(metafile_path, 'rb')
 
+        self.memrefs_offsets = self.load_memrefs_offsets(trace_path)
         self.num_insn = os.path.getsize(insn_trace_path) / sizeof(InsnRef)
 
         # parse the bytemaps
@@ -74,18 +85,52 @@ class PyPeekaboo(object):
         while self.insn_bytemap.readinto(bytesmap_entry) == sizeof(bytesmap_entry):
             self.bytesmap[bytesmap_entry.pc] = [x for x in bytesmap_entry.rawbytes][:bytesmap_entry.size]
 
-        # generate the memfile offsets
-        cur_offset = 0
-        self.memfile_offsets = []
-        memref_entry = MemRef()
-        while self.memrefs.readinto(memref_entry) == sizeof(memref_entry):
-            if memref_entry.length:
-                self.memfile_offsets.append(cur_offset)
-            else:
-                self.memfile_offsets.append(None)
-            cur_offset += sizeof(MemFile)
+    def load_memrefs_offsets(self, trace_path):
+        memrefs_offsets_path = os.path.join(trace_path, 'memrefs_offsets')
+        if not os.path.isfile(memrefs_offsets_path):
+            # memfile offsets for each insn does not exist, create them
+            # generate the memfile offsets
+            with open(memrefs_offsets_path, 'wb') as offset_file:
+                cur_offset = 0
+                memfile_offsets = []
+                memref_entry = MemRef()
+                while self.memrefs.readinto(memref_entry) == sizeof(memref_entry):
+                    if memref_entry.length:
+                        offset_file.write(struct.pack('<Q', cur_offset))
+                        cur_offset += sizeof(MemFile) * memref_entry.length
+                    else:
+                        # 63rd bit tell us if its valid or not, 0 is valid, 1 is not
+                        offset_file.write(struct.pack('<Q', 2**63))
+        return open(memrefs_offsets_path, 'rb')
 
-        # print(self.memfile_offsets)
+    def get_insn(self, insn_id):
+        my_insn = TraceInsn()
+
+        x = InsnRef()
+        self.insn_trace.seek(insn_id * sizeof(InsnRef))
+        assert(self.insn_trace.readinto(x) == sizeof(InsnRef))
+        my_insn.addr = x.pc
+        my_insn.rawbytes = self.bytesmap[x.pc]
+
+        x = MemRef()
+        self.memrefs.seek(insn_id * sizeof(MemRef))
+        assert(self.memrefs.readinto(x) == sizeof(MemRef))
+        my_insn.num_mem = x.length
+
+
+        my_insn.mem = []
+        if my_insn.num_mem:
+            self.memrefs_offsets.seek(insn_id * 8)
+            for _ in range(my_insn.num_mem):
+                buf = self.memrefs_offsets.read(8)
+                memref_offset = struct.unpack('<Q', buf)[0]
+                memfile = MemFile()
+                self.memfile.seek(memref_offset)
+                assert(self.memfile.readinto(memfile)==sizeof(MemFile))
+                print(memfile)
+
+        return my_insn
+
     
     def pp(self):
         insn_ref = InsnRef()
