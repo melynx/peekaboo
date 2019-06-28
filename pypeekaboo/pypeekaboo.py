@@ -216,6 +216,12 @@ class PyPeekaboo(object):
         my_insn.regfile = read_struct(self.regfile, self.regfile_struct)
         return my_insn
 
+    def get_uniq_rawbytes(self):
+        insn_set = set()
+        for addr in self.bytesmap:
+            bytestring = ''.join(['{:02x}'.format(x) for x in self.bytesmap[addr]])
+            insn_set.add(bytestring)
+        return insn_set
     
     def pp(self):
         for x in range(self.num_insn):
@@ -223,6 +229,7 @@ class PyPeekaboo(object):
 
 def main():
     x = PyPeekaboo(sys.argv[1])
+    print(x.get_uniq_rawbytes())
     x.pp()
 
 if __name__ == "__main__":
