@@ -206,10 +206,10 @@ class PyPeekaboo(object):
         my_insn.mem = []
         if my_insn.num_mem:
             self.memrefs_offsets.seek(memfile_index_foffset)
+            buf = self.memrefs_offsets.read(8)
+            memref_offset = struct.unpack('<Q', buf)[0]
+            self.memfile.seek(memref_offset)
             for _ in range(my_insn.num_mem):
-                buf = self.memrefs_offsets.read(8)
-                memref_offset = struct.unpack('<Q', buf)[0]
-                self.memfile.seek(memref_offset)
                 my_insn.mem.append(read_struct(self.memfile, MemFile))
 
         self.regfile.seek(regfile_foffset)
@@ -218,8 +218,12 @@ class PyPeekaboo(object):
 
     
     def pp(self):
-        insn_ref = InsnRef()
-        while self.insn_trace.readinto(insn_ref) == sizeof(InsnRef):
-            rawbytes = self.bytesmap[insn_ref.pc]
-            print("{}\t: {}".format(hex(insn_ref.pc), [hex(x) for x in rawbytes]))
+        for x in range(self.num_insn):
+            self.get_insn(x)
 
+def main():
+    x = PyPeekaboo(sys.argv[1])
+    x.pp()
+
+if __name__ == "__main__":
+    main()
