@@ -307,6 +307,9 @@ static void event_thread_init(void *drcontext)
 	printf("Created trace : %s\n", buf);
 	printf("Arch: %d\n", arch);
 	printf("libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
+	char path[256];
+	sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
+	system(path);
 }
 
 static void event_thread_exit(void *drcontext)
