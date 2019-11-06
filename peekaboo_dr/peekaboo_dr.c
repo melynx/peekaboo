@@ -286,7 +286,6 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 
 	//if (drmgr_is_first_instr(drcontext, instr) IF_AARCHXX(&& !instr_is_exclusive_store(instr)))
 	//	dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
-	
 	return DR_EMIT_DEFAULT;
 }
 
@@ -379,11 +378,6 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	printf("%s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Binary being traced: %s\n", dr_get_application_name());
-	//printf("REGFILE_BUF = %p\n", regfile_buf);
-	//printf("Sizeof bytes map: %lu\n", sizeof(bytes_map_t));
-	//printf("Sizeof regfile: %lu\n", sizeof(regfile_ref_t));
-	//printf("sizeof reg_t:%lu\n", sizeof(reg_t));
-	//printf("sizeof dr_mcontext_t:%lu\n", sizeof(dr_mcontext_t));
 	printf("Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }
