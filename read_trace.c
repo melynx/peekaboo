@@ -8,16 +8,6 @@
 
 typedef regfile_amd64_t regfile_ref_t;
 
-bytes_map_t *find_bytes_map(uint64_t pc, bytes_map_t *bytes_map_buf, size_t num_maps)
-{
-	for (int x=0; x<num_maps; x++)
-	{
-		if ((bytes_map_buf+x)->pc == pc)
-			return bytes_map_buf+x;
-	}
-	return NULL;
-}
-
 int main(int argc, char *argv[])
 {
 

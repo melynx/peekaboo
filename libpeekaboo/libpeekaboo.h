@@ -68,7 +68,6 @@ typedef struct {
 } memfile_t;
 //---------------------------------------------------------
 
-
 //------Supported archs declarations-----------------------
 #include "arch/amd64.h"
 #include "arch/aarch64.h"
@@ -76,31 +75,50 @@ typedef struct {
 
 // peekaboo trace definition
 typedef struct {
+	uint32_t arch;
+	size_t ptr_size;
+	size_t regfile_size;
+	bytes_map_t *bytes_map_buf;
+	size_t bytes_map_size;
+	size_t num_insns;
+
+	size_t current_id;
+	insn_ref_t *insn_ref_buf;
+	void *regfile_buf;
+	memfile_t *memfile_buf;
+	memref_t *memref_buf;
+} peekaboo_internal_t;
+
+typedef struct {
 	FILE *insn_trace;
 	FILE *bytes_map;
 	FILE *regfile;
 	FILE *memrefs;
 	FILE *memfile;
 	FILE *metafile;
-	void *internal;
+	FILE *memrefs_offsets;
+	peekaboo_internal_t *internal;
 } peekaboo_trace_t;
 
 typedef struct {
-	insn_ref_t *insn_ref_buf;
-	bytes_map_t *bytes_map_buf;
-	void *regfile_buf;
-	memfile_t *memfile_buf;
-	memref_t *memref_buf;
-} peekaboo_internal_t;
+	uint64_t addr;
+	size_t size;
+	uint8_t rawbytes[16];
+	size_t num_mem;
+	memfile_t mem[8];
+	void *regfile;
+} peekaboo_insn_t;
 // end
 
 peekaboo_trace_t *create_trace(char *name);
 void close_trace(peekaboo_trace_t *trace);
-peekaboo_trace_t *load_trace(char *);
+void load_trace(char *, peekaboo_trace_t *trace);
 
 void write_metadata(peekaboo_trace_t *, enum ARCH, uint32_t version);
-//size_t num_insn(peekaboo_trace_t);
-//size_t num_regfile(peekaboo_trace_t);
-//int load_bytes_map(peekaboo_trace_t, bytes_map_t *);
+size_t num_regfile(peekaboo_trace_t *);
+
+uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
+size_t get_num_insn(peekaboo_trace_t *);
+peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace);
 
 #endif

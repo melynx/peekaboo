@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "libpeekaboo.h"
 
@@ -97,9 +98,85 @@ peekaboo_trace_t *create_trace(char *name)
 	return trace_ptr;
 }
 
-peekaboo_trace_t *load_trace(char *dir_path)
+void load_bytes_map(peekaboo_trace_t *trace)
 {
-	peekaboo_trace_t *trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
+	fseek(trace->bytes_map, 0, SEEK_END);
+	size_t bytesmap_size = ftell(trace->bytes_map);
+	size_t num_maps = bytesmap_size / sizeof(bytes_map_t);
+
+	trace->internal->bytes_map_buf = malloc(bytesmap_size);
+	trace->internal->bytes_map_size = bytesmap_size;
+
+	rewind(trace->bytes_map);
+	printf("Found %lu instructions in bytemap...\n", num_maps);
+	if (fread(trace->internal->bytes_map_buf, sizeof(bytes_map_t), num_maps, trace->bytes_map) != num_maps)
+	{
+		printf("BYTES MAP READ ERROR!\n");
+		exit(1);
+	}
+	printf("\n");
+	return ;
+}
+
+bytes_map_t *find_bytes_map(uint64_t pc, peekaboo_trace_t *trace)
+{
+	bytes_map_t *bytes_map_buf = trace->internal->bytes_map_buf;
+	size_t map_size = trace->internal->bytes_map_size;
+	size_t num_maps = map_size / sizeof(bytes_map_t);
+
+	for (int x=0; x<num_maps; x++)
+	{
+		if ((bytes_map_buf+x)->pc == pc)
+			return bytes_map_buf+x;
+	}
+
+	return NULL;
+}
+
+void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
+{
+	char path[MAX_PATH];
+	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs_offsets");
+	if (access(path, F_OK) == -1)
+	{
+		FILE *memrefs_offsets = fopen(path, "wb");
+
+		memref_t buffer[1024];
+		size_t write_buffer[1024];
+
+		size_t read_size = 0;
+		size_t offset = 0;
+
+		rewind(trace->memrefs);
+		do {
+			read_size = fread(buffer, sizeof(memref_t), 1024, trace->memrefs);
+			for (int x=0; x<read_size; x++)
+			{
+				if (buffer[x].length)
+				{
+					write_buffer[x] = offset;
+					offset += buffer[x].length * sizeof(memref_t);
+				}
+				else
+				{
+					write_buffer[x] = -1;
+				}
+			}
+			fwrite(write_buffer, sizeof(size_t), read_size, memrefs_offsets);
+		} while (feof(trace->memrefs));
+		rewind(trace->memrefs);
+		fclose(memrefs_offsets);
+	}
+	trace->memrefs_offsets = fopen(path, "rb");
+}
+
+size_t get_num_insn(peekaboo_trace_t *trace)
+{
+	return trace->internal->num_insns;
+}
+
+void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
+{
 	char path[MAX_PATH];
 
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
@@ -111,11 +188,48 @@ peekaboo_trace_t *load_trace(char *dir_path)
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
 	trace_ptr->memfile = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs");
-	trace_ptr->memfile = fopen(path, "rb");
+	trace_ptr->memrefs = fopen(path, "rb");
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
 	trace_ptr->metafile = fopen(path, "rb");
 
-	return trace_ptr;
+	load_memrefs_offsets(dir_path, trace_ptr);
+
+	// creates the internal data-structure to store the
+	// meta-information about the loaded trace
+	trace_ptr->internal = malloc(sizeof(peekaboo_internal_t));
+	memset(trace_ptr->internal, 0, sizeof(peekaboo_internal_t));
+
+	// setup the information
+	metadata_hdr_t meta;
+	fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
+	trace_ptr->internal->arch = meta.arch;
+	switch (meta.arch)
+	{
+		case ARCH_AMD64:
+			trace_ptr->internal->ptr_size = 8;
+			trace_ptr->internal->regfile_size = sizeof(regfile_amd64_t);
+			break;
+		case ARCH_AARCH64:
+			trace_ptr->internal->ptr_size = 4;
+			trace_ptr->internal->regfile_size = sizeof(regfile_aarch64_t);
+			break;
+		default:
+			trace_ptr->internal->ptr_size = 0;
+			trace_ptr->internal->regfile_size = 0;
+			break;
+	}
+
+	size_t trace_size = 0;
+	size_t ptr_size = trace_ptr->internal->ptr_size;
+	fseek(trace_ptr->insn_trace, 0, SEEK_END);
+	trace_size = ftell(trace_ptr->insn_trace);
+	rewind(trace_ptr->insn_trace);
+	trace_ptr->internal->num_insns = trace_size/ptr_size;
+
+	// loads the rawbytes map for the trace
+	load_bytes_map(trace_ptr);
+
+	return ;
 }
 
 void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t version)
@@ -126,62 +240,71 @@ void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t versio
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 }
 
-/*
-size_t get_insn_size(peekaboo_trace_t trace)
+size_t get_ptr_size(peekaboo_trace_t *trace)
 {
-	size_t size = 0;
-	metadata_hdr_t meta;
-	fread(&meta, sizeof(metadata_hdr_t), 1, trace.metafile);
-	switch (meta.arch)
-	{
-		case ARCH_AMD64:
-			size = 8;
-			break;
-		case ARCH_AARCH64:
-			size = 4;
-			break;
-		default:
-			size = 0;
-			break;
-	}
-
-	return size;
+	return trace->internal->ptr_size;
 }
 
-size_t num_insn(peekaboo_trace_t trace)
+size_t get_regfile_size(peekaboo_trace_t *trace)
 {
-	size_t trace_size = 0;
-	size_t insn_size = get_insn_size(trace);
-	fseek(trace.insn_trace, 0, SEEK_END);
-	trace_size = ftell(trace.insn_trace);
-	rewind(trace.insn_trace);
-	return trace_size / insn_size;
+	return trace->internal->regfile_size;
 }
 
-size_t num_regfile(peekaboo_trace_t *trace)
+uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
 {
-	size_t trace_size = 0;
-	size_t insn_size = get_insn_size(trace);
-	fseek(trace->insn_trace, 0, SEEK_END);
-	trace_size = ftell(trace->insn_trace);
-	rewind(trace->insn_trace);
-	return trace_size / insn_size;
+	if (!id) exit(1);
+
+	uint64_t addr = 0;
+	size_t ptr_size = get_ptr_size(trace);
+
+	fseek(trace->insn_trace, (id-1) * ptr_size, SEEK_SET);
+	fread(&addr, ptr_size, 1, trace->insn_trace);
+	return addr;
 }
 
-int load_bytes_map(peekaboo_trace_t trace, bytes_map_t *bytes_map_buf)
+size_t get_num_mem(size_t id, peekaboo_trace_t *trace)
 {
-	size_t bytesmap_size = ftell(trace.bytes_map);
-	size_t num_maps = bytesmap_size / sizeof(bytes_map_t);
-	rewind(bytes_map);
-	printf("Found %lu instructions in bytemap...\n", num_maps);
-	bytes_map_buf = malloc(bytesmap_size);
-	if (fread(bytes_map_buf, sizeof(bytes_map_t), num_maps, bytes_map) != num_maps)
-	{
-		printf("BYTES MAP READ ERROR!\n");
-		exit(1);
-	}
-	printf("\n");
-	return 0;
+	if (!id) exit(1);
+
+	size_t num_mem = 0;
+	fseek(trace->memrefs, (id-1) * sizeof(memref_t), SEEK_SET);
+	fread(&num_mem, sizeof(memref_t), 1, trace->memrefs);
+	return num_mem;
 }
-*/
+
+peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
+{
+	peekaboo_insn_t *insn = malloc(sizeof(peekaboo_insn_t));
+	size_t regfile_size = get_regfile_size(trace);
+	insn->regfile = malloc(regfile_size);
+
+	// insn is the peekaboo instruction record
+	
+	// populate the address for the instruction
+	insn->addr = get_addr(id, trace);
+
+	// get the rawbytes for the instruction
+	bytes_map_t *bytes_map = find_bytes_map(insn->addr, trace);
+
+	if (!bytes_map) exit(1);
+
+	insn->size = bytes_map->size;
+	memcpy(insn->rawbytes, bytes_map->rawbytes, 16);
+
+	// get the number of mem operands
+	insn->num_mem = get_num_mem(id, trace);
+	if (insn->num_mem > 8) exit(1);
+	fseek(trace->memrefs_offsets, (id-1) * sizeof(size_t), SEEK_SET);
+	size_t memfile_offset;
+	fread(&memfile_offset, sizeof(size_t), 1, trace->memrefs_offsets);
+	fseek(trace->memfile, memfile_offset, SEEK_SET);
+	fread(insn->mem, sizeof(memfile_t), insn->num_mem, trace->memfile);
+
+	// read the regfile...
+	fseek(trace->regfile, (id-1) * regfile_size, SEEK_SET);
+	fread(insn->regfile, regfile_size, 1, trace->regfile);
+
+	// done! return
+	return insn;
+}
 

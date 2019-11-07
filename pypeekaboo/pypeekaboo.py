@@ -183,7 +183,7 @@ class PyPeekaboo(object):
                         cur_offset += sizeof(MemFile) * memref_entry.length
                     else:
                         # 63rd bit tell us if its valid or not, 0 is valid, 1 is not
-                        offset_file.write(struct.pack('<Q', 2**63))
+                        offset_file.write(struct.pack('<Q', 2**64-1))
         return open(memrefs_offsets_path, 'rb')
 
     def get_insn(self, insn_id):
