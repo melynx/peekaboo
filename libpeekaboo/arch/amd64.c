@@ -1,4 +1,6 @@
-void amd64_regfile_pp(regfile_amd64_t regfile)
+#include "amd64.h"
+
+void amd64_regfile_pp(regfile_amd64_t *regfile)
 {
 	char *gpr_string[] = {"rdi",
 	                     "rsi",
@@ -21,6 +23,6 @@ void amd64_regfile_pp(regfile_amd64_t regfile)
 
 	for (int x=0; x<18; x++)
 	{
-		printf("%s:%" PRIx64 "\n", gpr_string[x], ((uint64_t *)&(regfile.gpr))[x]);
+		printf("%s:%" PRIx64 "\n", gpr_string[x], ((uint64_t *)&(regfile->gpr))[x]);
 	}
 }

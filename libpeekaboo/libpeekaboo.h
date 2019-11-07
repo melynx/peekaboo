@@ -75,6 +75,16 @@ typedef struct {
 
 // peekaboo trace definition
 typedef struct {
+	uint64_t addr;
+	size_t size;
+	uint8_t rawbytes[16];
+	size_t num_mem;
+	memfile_t mem[8];
+	uint32_t arch;
+	void *regfile;
+} peekaboo_insn_t;
+
+typedef struct {
 	uint32_t arch;
 	size_t ptr_size;
 	size_t regfile_size;
@@ -99,15 +109,6 @@ typedef struct {
 	FILE *memrefs_offsets;
 	peekaboo_internal_t *internal;
 } peekaboo_trace_t;
-
-typedef struct {
-	uint64_t addr;
-	size_t size;
-	uint8_t rawbytes[16];
-	size_t num_mem;
-	memfile_t mem[8];
-	void *regfile;
-} peekaboo_insn_t;
 // end
 
 peekaboo_trace_t *create_trace(char *name);
@@ -120,5 +121,6 @@ size_t num_regfile(peekaboo_trace_t *);
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
 size_t get_num_insn(peekaboo_trace_t *);
 peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace);
+void regfile_pp(peekaboo_insn_t *insn);
 
 #endif

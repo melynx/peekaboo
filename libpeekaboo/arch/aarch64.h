@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <inttypes.h>
 
+#include "libpeekaboo.h"
+
 #define AARCH64_NUM_SIMD_SLOTS 32
 
 /* Regfile */
@@ -62,6 +64,6 @@ typedef struct regfile_aarch64 {
 	uint128_t v[AARCH64_NUM_SIMD_SLOTS];
 } regfile_aarch64_t;
 
-void aarch64_regfile_pp(regfile_aarch64_t regfile);
+void aarch64_regfile_pp(regfile_aarch64_t *regfile);
 
 #endif

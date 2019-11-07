@@ -277,6 +277,7 @@ peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
 	peekaboo_insn_t *insn = malloc(sizeof(peekaboo_insn_t));
 	size_t regfile_size = get_regfile_size(trace);
 	insn->regfile = malloc(regfile_size);
+	insn->arch = trace->internal->arch;
 
 	// insn is the peekaboo instruction record
 	
@@ -308,3 +309,18 @@ peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
 	return insn;
 }
 
+void regfile_pp(peekaboo_insn_t *insn)
+{
+	switch (insn->arch)
+	{
+		case ARCH_AMD64:
+			amd64_regfile_pp(insn->regfile);
+			break;
+		case ARCH_AARCH64:
+			aarch64_regfile_pp(insn->regfile);
+			break;
+		default:
+			printf("Unsupported Architecture!\n");
+			break;
+	}
+}

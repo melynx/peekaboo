@@ -39,6 +39,7 @@
 			regfile_ptr->gpr.reg_r15 = mc->r15;
 			regfile_ptr->gpr.reg_rflags = mc->rflags;
 			regfile_ptr->gpr.reg_rip = (uint64_t) mc->rip;
+			printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
 
 			// here, we cast the simd structure into an array of uint256_t
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);

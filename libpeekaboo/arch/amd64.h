@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <inttypes.h>
 
+#include "libpeekaboo.h"
+
 #define AMD64_NUM_SIMD_SLOTS 16
 
 
@@ -100,7 +102,7 @@ typedef struct regfile_amd64{
 	fxsave_area_t fxsave;
 } regfile_amd64_t;
 
-void amd64_regfile_pp(regfile_amd64_t regfile);
+void amd64_regfile_pp(regfile_amd64_t *regfile);
 /* End of Regfile */
 
 #endif
