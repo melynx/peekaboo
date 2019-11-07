@@ -210,7 +210,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 			trace_ptr->internal->regfile_size = sizeof(regfile_amd64_t);
 			break;
 		case ARCH_AARCH64:
-			trace_ptr->internal->ptr_size = 4;
+			trace_ptr->internal->ptr_size = 8;
 			trace_ptr->internal->regfile_size = sizeof(regfile_aarch64_t);
 			break;
 		default:
