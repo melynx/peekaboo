@@ -1,5 +1,21 @@
 # Peekaboo
-A tracer for DynamoRIO and Pin (not supported yet).
+peekaboo is an attempt to provide an easily extensible and usable dynamic trace
+format. peekaboo provides definitions for typical properties expected for
+dynamic traces like instruction addresses, memory operand info, register info,
+etc. The trace is structured as a collection of files each corresponding to some
+piece of information which the trace support. Currently, peekaboo has a
+execution tracer that is built on top of DynamoRIO. There are future plans for a
+PIN execution tracer and different conversion tools to convert traces obtained
+from other tools to peekaboo format.
+
+## Architectures
+### Currently Support
+AMD64, AARCH64
+### Planned Support
+X86, AARCH32
+
+## libpeekaboo API
+TODO
 
 ## For DynamoRIO
 ### How to build
