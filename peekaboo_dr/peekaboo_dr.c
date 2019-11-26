@@ -262,7 +262,8 @@ static dr_emit_flags_t save_bb_rawbytes(void *drcontext, void *tag, instrlist_t 
 		DR_ASSERT(length <= 16);
 		bytes_map[idx].pc = (uint64_t)instr_get_app_pc(insn);
 		bytes_map[idx].size = length;
-		for (int x=0; x<length; x++)
+    int x;
+		for (x=0; x<length; x++)
 		{
 			bytes_map[idx].rawbytes[x] = instr_get_raw_byte(insn, x);
 		}
