@@ -139,8 +139,8 @@ bytes_map_t *find_bytes_map(uint64_t pc, peekaboo_trace_t *trace)
 	bytes_map_t *bytes_map_buf = trace->internal->bytes_map_buf;
 	size_t map_size = trace->internal->bytes_map_size;
 	size_t num_maps = map_size / sizeof(bytes_map_t);
-
-	for (int x=0; x<num_maps; x++)
+	int x;
+	for (x=0; x<num_maps; x++)
 	{
 		if ((bytes_map_buf+x)->pc == pc)
 			return bytes_map_buf+x;
@@ -166,7 +166,8 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 		rewind(trace->memrefs);
 		do {
 			read_size = fread(buffer, sizeof(memref_t), 1024, trace->memrefs);
-			for (int x=0; x<read_size; x++)
+      int x;
+			for (x=0; x<read_size; x++)
 			{
 				if (buffer[x].length)
 				{
