@@ -20,6 +20,8 @@
 #include <stddef.h> /* for offsetof */
 #include <assert.h>
 #include <inttypes.h>
+#include <signal.h>
+
 
 #include "dr_api.h"
 #include "drmgr.h"
@@ -116,6 +118,7 @@ static drx_buf_t *regfile_buf;
 static drx_buf_t *memrefs_buf;
 static drx_buf_t *memfile_buf;
 
+
 static void flush_insnrefs(void *drcontext, void *buf_base, size_t size)
 {
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
@@ -149,6 +152,8 @@ static void flush_memfile(void *drcontext, void *buf_base, size_t size)
 	fwrite(buf_base, sizeof(memfile_t), count, data->peek_trace->memfile);
 }
 
+/*
+
 static void flush_map(void *drcontext, void *buf_base, size_t size)
 {
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
@@ -156,6 +161,38 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 	DR_ASSERT(size % sizeof(bytes_map_t) == 0);
 	fwrite(buf_base, sizeof(bytes_map_t), count, data->peek_trace->bytes_map);
 }
+
+*/
+
+static dr_signal_action_t event_signal(void *drcontext, dr_siginfo_t *info)
+{
+    /* Flush data in buffers when receiving SIGINT(2), SIGABRT(6), SIGSEGV(11) */
+    if ((info->sig == SIGINT) || (info->sig == SIGABRT) || (info->sig ==  SIGSEGV))
+    {
+        printf("Peekaboo: Signal %d caught.\n", info->sig);
+        per_thread_t *data;
+        data = drmgr_get_tls_field(drcontext, tls_idx);
+        dr_mutex_lock(mutex);
+
+        flush_insnrefs(drcontext, insn_ref_buf, INSN_REF_SIZE);
+        flush_memfile(drcontext, memfile_buf, MEMFILE_SIZE);
+        flush_memrefs(drcontext, memrefs_buf, MEM_REFS_SIZE);
+        flush_regfile(drcontext, regfile_buf, REG_BUF_SIZE);
+
+        fflush(data->peek_trace->insn_trace);
+        fflush(data->peek_trace->bytes_map);
+        fflush(data->peek_trace->regfile);
+        fflush(data->peek_trace->memfile);
+        fflush(data->peek_trace->memrefs);
+        fflush(data->peek_trace->metafile);
+        
+        dr_mutex_unlock(mutex);
+    }
+
+    /* Deliver the signal to app */
+    return DR_SIGNAL_DELIVER;
+}
+
 
 static void save_regfile(void)
 {
@@ -321,9 +358,9 @@ static void event_thread_init(void *drcontext)
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
-	printf("Created trace : %s\n", buf);
-	printf("Arch: %d\n", arch);
-	printf("libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
+	printf("Peekaboo: Created trace : %s\n", buf);
+	printf("Peekaboo: Arch: %d\n", arch);
+	printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
 	char path[256];
 	sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
 	system(path);
@@ -343,7 +380,7 @@ static void event_thread_exit(void *drcontext)
 static void event_exit(void)
 {
 	//dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
-	printf("'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
+	printf("Peekaboo: Total number of instructions seen: " SZFMT "\n", num_refs);
 
 
 	if (!drmgr_unregister_tls_field(tls_idx) ||
@@ -368,7 +405,8 @@ static void event_exit(void)
 
 DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 {
-	drreg_options_t ops = {sizeof(ops), 4, false};
+
+    drreg_options_t ops = {sizeof(ops), 4, false};
 	dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
 	drreg_init(&ops);
@@ -376,6 +414,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 
+    drmgr_register_signal_event(event_signal);
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
@@ -393,9 +432,9 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
 	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
-	printf("%s - Client 'peekaboo' initializing\n", arch_str);
+	printf("Peekaboo: %s - Client 'peekaboo' initializing\n", arch_str);
 
-	printf("Binary being traced: %s\n", dr_get_application_name());
-	printf("Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
+	printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
+	printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }
