@@ -25,4 +25,4 @@ amd64.o: $(ARCH_DIR)/amd64.c $(ARCH_DIR)/amd64.h
 .PHONY: clean
 
 clean:
-	rm -f *.o *.a *.gch
+	rm -f *.o *.a *.gch $(ARCH_DIR)/*.o $(ARCH_DIR)/*.gch
