@@ -15,6 +15,12 @@ AMD64, AARCH64
 X86, AARCH32
 
 ## libpeekaboo API
+Build a static library:
+```
+cd libpeekaboo
+make
+```
+APIs:
 TODO
 
 ## For DynamoRIO
