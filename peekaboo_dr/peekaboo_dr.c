@@ -398,7 +398,7 @@ static void event_exit(void)
 	    !drmgr_unregister_thread_exit_event(event_thread_exit) ||
 	    !drmgr_unregister_bb_insertion_event(per_insn_instrument) ||
 	    !drmgr_unregister_pre_syscall_event(event_pre_syscall) ||
-        !drmgr_unregister_post_syscall_event(event_post_syscall)) ||
+      !drmgr_unregister_post_syscall_event(event_post_syscall) ||
 	    drreg_exit() != DRREG_SUCCESS)
 	    DR_ASSERT(false && "failed to unregister");
 
@@ -426,9 +426,9 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 
-    drmgr_register_signal_event(event_signal);
-    drmgr_register_pre_syscall_event(event_pre_syscall);
-    drmgr_register_post_syscall_event(event_post_syscall);
+	drmgr_register_signal_event(event_signal);
+	drmgr_register_pre_syscall_event(event_pre_syscall);
+	drmgr_register_post_syscall_event(event_post_syscall);
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
