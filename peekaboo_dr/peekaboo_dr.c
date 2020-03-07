@@ -344,6 +344,16 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	return DR_EMIT_DEFAULT;
 }
 
+static bool event_pre_syscall(void *drcontext, int sysnum)
+{
+    dr_printf("Peekaboo: get syscall id %d\n", sysnum);
+    return true; /* execute normally */
+}
+static void event_post_syscall(void *drcontext, int sysnum)
+{
+    return;
+}
+
 static void event_thread_init(void *drcontext)
 {
 	char buf[256];
@@ -387,8 +397,10 @@ static void event_exit(void)
 	    !drmgr_unregister_thread_init_event(event_thread_init) ||
 	    !drmgr_unregister_thread_exit_event(event_thread_exit) ||
 	    !drmgr_unregister_bb_insertion_event(per_insn_instrument) ||
+	    !drmgr_unregister_pre_syscall_event(event_pre_syscall) ||
+        !drmgr_unregister_post_syscall_event(event_post_syscall)) ||
 	    drreg_exit() != DRREG_SUCCESS)
-	    DR_ASSERT(false);
+	    DR_ASSERT(false && "failed to unregister");
 
 	dr_mutex_destroy(mutex);
 	drmgr_exit();
@@ -415,6 +427,8 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drx_init();
 
     drmgr_register_signal_event(event_signal);
+    drmgr_register_pre_syscall_event(event_pre_syscall);
+    drmgr_register_post_syscall_event(event_post_syscall);
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
