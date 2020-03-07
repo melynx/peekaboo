@@ -34,30 +34,9 @@
 
 
 #ifdef PEEKABOO_SYSCALL
-#include "drsyscall.h"
-    // #include "syscalls.h"
-static bool event_filter_syscall(void *drcontext, int sysnum)
-{
-    dr_printf("Peekaboo: filtering syscall %d:\n ", sysnum);
-    return true; /* intercept everything */
-}
+//#include "drsyscall.h"
+#include "syscalls.h"
 
-static bool event_pre_syscall(void *drcontext, int sysnum)
-{
-    drsys_syscall_t *syscall;
-    const char *name = "<unknown>";
-    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
-        drsys_syscall_name(syscall, &name);
-    dr_printf("Peekaboo: get syscall id %d: %s\n", sysnum, name);
-    /* We can also get the # of args and the type of each arg.
-     * See the drstrace tool for an example of how to do that.
-     */
-    return true; /* execute normally */
-}
-static void event_post_syscall(void *drcontext, int sysnum)
-{
-    return;
-}
 #endif
 
 #ifdef X86
