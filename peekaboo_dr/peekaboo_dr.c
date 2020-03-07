@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <signal.h>
 
+
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
@@ -31,8 +32,33 @@
 
 #include "libpeekaboo.h"
 
+
 #ifdef PEEKABOO_SYSCALL
-    #include "drsyscall.h"
+#include "drsyscall.h"
+//#include "syscalls.h"
+
+static bool event_filter_syscall(void *drcontext, int sysnum)
+{
+    return true; /* intercept everything */
+}
+
+static bool event_pre_syscall(void *drcontext, int sysnum)
+{
+    drsys_syscall_t *syscall;
+    const char *name = "<unknown>";
+    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
+        drsys_syscall_name(syscall, &name);
+    dr_printf("Peekaboo: get syscall id %d: %s\n", sysnum, name);
+    /* We can also get the # of args and the type of each arg.
+     * See the drstrace tool for an example of how to do that.
+     */
+    return true; /* execute normally */
+}
+static void event_post_syscall(void *drcontext, int sysnum)
+{
+    return;
+}
+
 #endif
 
 #ifdef X86
@@ -156,7 +182,6 @@ static void flush_memfile(void *drcontext, void *buf_base, size_t size)
 }
 
 /*
-
 static void flush_map(void *drcontext, void *buf_base, size_t size)
 {
 	per_thread_t *data = drmgr_get_tls_field(drcontext, tls_idx);
@@ -164,7 +189,6 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 	DR_ASSERT(size % sizeof(bytes_map_t) == 0);
 	fwrite(buf_base, sizeof(bytes_map_t), count, data->peek_trace->bytes_map);
 }
-
 */
 
 static dr_signal_action_t event_signal(void *drcontext, dr_siginfo_t *info)
@@ -347,37 +371,6 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	return DR_EMIT_DEFAULT;
 }
 
-#ifdef PEEKABOO_SYSCALL
-static bool event_filter_syscall(void *drcontext, int sysnum)
-{
-    return true; /* intercept everything */
-}
-
-static bool event_pre_syscall(void *drcontext, int sysnum)
-{
-    drsys_syscall_t *syscall;
-    drmf_status_t res;
-    const char *name = "<unknown>";
-    char buf[256] = {};
-
-    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
-        drsys_syscall_name(syscall, &name);
-    dr_printf("Peekaboo: get syscall id %d: %s\n", name, sysnum);
-    res = drsys_iterate_args(drcontext, drsys_iter_arg_cb, &buf);
-    if (res != DRMF_SUCCESS && res != DRMF_ERROR_DETAILS_UNKNOWN)
-        ASSERT(false, "drsys_iterate_args failed post-syscall");
-    dr_printf("Peekaboo: %s\n", buf);
-    /* We can also get the # of args and the type of each arg.
-     * See the drstrace tool for an example of how to do that.
-     */
-    return true; /* execute normally */
-}
-
-static void event_post_syscall(void *drcontext, int sysnum)
-{
-    return;
-}
-#endif
 
 static void event_thread_init(void *drcontext)
 {
