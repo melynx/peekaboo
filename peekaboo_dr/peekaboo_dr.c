@@ -427,6 +427,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 #ifdef PEEKABOO_SYSCALL
+    dr_printf("Peekaboo: Enable syscall tracer.\n");
     drsys_options_t ops_sys = { sizeof(ops), 0, };
     if (drsys_init(id, &ops_sys) != DRMF_SUCCESS)
         DR_ASSERT(false);
