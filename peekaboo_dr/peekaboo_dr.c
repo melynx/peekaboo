@@ -31,7 +31,7 @@
 #include "dr_defines.h"
 
 #include "libpeekaboo.h"
-#include "syscall.h"
+#include "syscalls.h"
 
 #ifdef X86
 	#ifdef X64

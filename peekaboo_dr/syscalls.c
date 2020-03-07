@@ -2,7 +2,7 @@
 // Created by Kaihang Ji on 3/7/2020.
 //
 
-#include "syscall.h"
+#include "syscalls.h"
 const char* get_syscall_name(int sysnum) {
     switch(sysnum) {
 
