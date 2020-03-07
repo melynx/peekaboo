@@ -31,6 +31,7 @@
 #include "dr_defines.h"
 
 #include "libpeekaboo.h"
+#include "syscall.h"
 
 #ifdef X86
 	#ifdef X64
@@ -351,7 +352,7 @@ static bool event_filter_syscall(void *drcontext, int sysnum)
 
 static bool event_pre_syscall(void *drcontext, int sysnum)
 {
-    dr_printf("Peekaboo: get syscall id %d\n", sysnum);
+    dr_printf("Peekaboo: get syscall id %d: %s\n", sysnum, get_syscall_name(sysnum));
     return true; /* execute normally */
 }
 static void event_post_syscall(void *drcontext, int sysnum)

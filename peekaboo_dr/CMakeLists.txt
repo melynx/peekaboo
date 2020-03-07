@@ -8,7 +8,7 @@ endif(NOT DynamoRIO_FOUND)
 option(OPTIMIZE_SAMPLES
   "Build samples with optimizations to increase the chances of clean call inlining (overrides debug flags)"
   ON)
-add_library(peekaboo_dr SHARED "peekaboo_dr.c;../libpeekaboo/libpeekaboo.c")
+add_library(peekaboo_dr SHARED "peekaboo_dr.c;../libpeekaboo/libpeekaboo.c;syscall.c")
 target_include_directories(peekaboo_dr PUBLIC ../libpeekaboo/)
 configure_DynamoRIO_client(peekaboo_dr)
 use_DynamoRIO_extension(peekaboo_dr drmgr)
