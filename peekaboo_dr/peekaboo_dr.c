@@ -34,7 +34,30 @@
 
 
 #ifdef PEEKABOO_SYSCALL
-    #include "syscalls.h"
+#include "drsyscall.h"
+    // #include "syscalls.h"
+static bool event_filter_syscall(void *drcontext, int sysnum)
+{
+    dr_printf("Peekaboo: filtering syscall %d:\n ", sysnum);
+    return true; /* intercept everything */
+}
+
+static bool event_pre_syscall(void *drcontext, int sysnum)
+{
+    drsys_syscall_t *syscall;
+    const char *name = "<unknown>";
+    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
+        drsys_syscall_name(syscall, &name);
+    dr_printf("Peekaboo: get syscall id %d: %s\n", sysnum, name);
+    /* We can also get the # of args and the type of each arg.
+     * See the drstrace tool for an example of how to do that.
+     */
+    return true; /* execute normally */
+}
+static void event_post_syscall(void *drcontext, int sysnum)
+{
+    return;
+}
 #endif
 
 #ifdef X86
@@ -427,7 +450,6 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 #ifdef PEEKABOO_SYSCALL
-    dr_printf("Peekaboo: Enable syscall tracer.\n");
     drsys_options_t ops_sys = { sizeof(ops), 0, };
     if (drsys_init(id, &ops_sys) != DRMF_SUCCESS)
         DR_ASSERT(false);
@@ -458,5 +480,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
     dr_printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
     dr_printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
-
+#ifdef PEEKABOO_SYSCALL
+    dr_printf("Peekaboo: Syscall tracer has been enabled.\n");
+#endif
 }
