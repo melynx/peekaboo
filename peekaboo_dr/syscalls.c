@@ -3,6 +3,31 @@
 //
 
 #include "syscalls.h"
+
+
+bool event_filter_syscall(void *drcontext, int sysnum)
+{
+    return true; /* intercept everything */
+}
+
+bool event_pre_syscall(void *drcontext, int sysnum)
+{
+    drsys_syscall_t *syscall;
+    const char *name = "<unknown>";
+    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
+        drsys_syscall_name(syscall, &name);
+    dr_printf("Peekaboo: get syscall id %d: %s ", name, sysnum);
+    /* We can also get the # of args and the type of each arg.
+     * See the drstrace tool for an example of how to do that.
+     */
+    return true; /* execute normally */
+}
+void event_post_syscall(void *drcontext, int sysnum)
+{
+    return;
+}
+
+
 const char* get_syscall_name(int sysnum) {
     switch(sysnum) {
 

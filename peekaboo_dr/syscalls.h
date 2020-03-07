@@ -5,6 +5,8 @@
 #ifndef PEEKABOO_SYSCALL_H
 #define PEEKABOO_SYSCALL_H
 
+#include "drsyscall.h"
+
 #ifdef UNIX
 #    ifdef LINUX
 #        include <syscall.h>
@@ -16,6 +18,9 @@
 #    include <errno.h>
 #endif
 
+bool event_filter_syscall(void *drcontext, int sysnum);
+bool event_pre_syscall(void *drcontext, int sysnum);
+void event_post_syscall(void *drcontext, int sysnum);
 const char* get_syscall_name(int sysnum);
 
 #endif //PEEKABOO_SYSCALL_H

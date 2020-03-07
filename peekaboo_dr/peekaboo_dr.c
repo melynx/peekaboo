@@ -29,10 +29,13 @@
 #include "drutil.h"
 #include "drx.h"
 #include "dr_defines.h"
-#include "drsyscall.h"
 
 #include "libpeekaboo.h"
-#include "syscalls.h"
+
+
+#ifdef PEEKABOO_SYSCALL
+    #include "syscalls.h"
+#endif
 
 #ifdef X86
 	#ifdef X64
@@ -346,27 +349,6 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	return DR_EMIT_DEFAULT;
 }
 
-static bool event_filter_syscall(void *drcontext, int sysnum)
-{
-    return true; /* intercept everything */
-}
-
-static bool event_pre_syscall(void *drcontext, int sysnum)
-{
-    drsys_syscall_t *syscall;
-    const char *name = "<unknown>";
-    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
-        drsys_syscall_name(syscall, &name);
-    dr_printf("Peekaboo: get syscall id %d: %s ", name, sysnum);
-    /* We can also get the # of args and the type of each arg.
-     * See the drstrace tool for an example of how to do that.
-     */
-    return true; /* execute normally */
-}
-static void event_post_syscall(void *drcontext, int sysnum)
-{
-    return;
-}
 
 static void event_thread_init(void *drcontext)
 {
@@ -411,10 +393,15 @@ static void event_exit(void)
 	    !drmgr_unregister_thread_init_event(event_thread_init) ||
 	    !drmgr_unregister_thread_exit_event(event_thread_exit) ||
 	    !drmgr_unregister_bb_insertion_event(per_insn_instrument) ||
-	    !drmgr_unregister_pre_syscall_event(event_pre_syscall) ||
-	    !drmgr_unregister_post_syscall_event(event_post_syscall) ||
 	    drreg_exit() != DRREG_SUCCESS)
 	    DR_ASSERT(false && "failed to unregister");
+
+#ifdef PEEKABOO_SYSCALL
+    if (!drmgr_unregister_pre_syscall_event(event_pre_syscall) ||
+    !drmgr_unregister_post_syscall_event(event_post_syscall) != DRREG_SUCCESS)
+	    DR_ASSERT(false && "failed to unregister");
+#endif
+
 
 	dr_mutex_destroy(mutex);
 	drmgr_exit();
@@ -433,20 +420,22 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 {
 
     drreg_options_t ops = {sizeof(ops), 4, false};
-    drsys_options_t ops_sys = { sizeof(ops), 0, };
     dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
 	drreg_init(&ops);
 	drmgr_init();
 	drutil_init();
 	drx_init();
+#ifdef PEEKABOO_SYSCALL
+    drsys_options_t ops_sys = { sizeof(ops), 0, };
     if (drsys_init(id, &ops_sys) != DRMF_SUCCESS)
         DR_ASSERT(false);
-
-	drmgr_register_signal_event(event_signal);
-	dr_register_filter_syscall_event(event_filter_syscall);
+    dr_register_filter_syscall_event(event_filter_syscall);
 	drmgr_register_pre_syscall_event(event_pre_syscall);
 	drmgr_register_post_syscall_event(event_post_syscall);
+#endif
+
+	drmgr_register_signal_event(event_signal);
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
