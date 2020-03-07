@@ -29,6 +29,7 @@
 #include "drutil.h"
 #include "drx.h"
 #include "dr_defines.h"
+#include "drsyscall.h"
 
 #include "libpeekaboo.h"
 #include "syscalls.h"
@@ -352,7 +353,14 @@ static bool event_filter_syscall(void *drcontext, int sysnum)
 
 static bool event_pre_syscall(void *drcontext, int sysnum)
 {
-    dr_printf("Peekaboo: get syscall id %d: %s\n", sysnum, get_syscall_name(sysnum));
+    drsys_syscall_t *syscall;
+    const char *name = "<unknown>";
+    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
+        drsys_syscall_name(syscall, &name);
+    dr_printf("Peekaboo: get syscall id %d: %s ", name, sysnum);
+    /* We can also get the # of args and the type of each arg.
+     * See the drstrace tool for an example of how to do that.
+     */
     return true; /* execute normally */
 }
 static void event_post_syscall(void *drcontext, int sysnum)
@@ -374,9 +382,9 @@ static void event_thread_init(void *drcontext)
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
-	printf("Peekaboo: Created trace : %s\n", buf);
-	printf("Peekaboo: Arch: %d\n", arch);
-	printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
+	dr_printf("Peekaboo: Created trace : %s\n", buf);
+    //dr_printf("Peekaboo: Arch: %d\n", arch);
+    //dr_printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
 	char path[256];
 	sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
 	system(path);
@@ -396,7 +404,7 @@ static void event_thread_exit(void *drcontext)
 static void event_exit(void)
 {
 	//dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
-	printf("Peekaboo: Total number of instructions seen: " SZFMT "\n", num_refs);
+    dr_printf("Peekaboo: Total number of instructions seen: " SZFMT "\n", num_refs);
 
 
 	if (!drmgr_unregister_tls_field(tls_idx) ||
@@ -425,12 +433,15 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 {
 
     drreg_options_t ops = {sizeof(ops), 4, false};
-	dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
+    drsys_options_t ops_sys = { sizeof(ops), 0, };
+    dr_set_client_name("peekaboo DynamoRIO tracer", "https://github.com/melynx/peekaboo");
 
 	drreg_init(&ops);
 	drmgr_init();
 	drutil_init();
 	drx_init();
+    if (drsys_init(id, &ops_sys) != DRMF_SUCCESS)
+        DR_ASSERT(false);
 
 	drmgr_register_signal_event(event_signal);
 	dr_register_filter_syscall_event(event_filter_syscall);
@@ -453,9 +464,9 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
 
 	//dr_log(NULL, DR_LOG_ALL, 11, "%s - Client 'peekaboo' initializing\n", arch);
-	printf("Peekaboo: %s - Client 'peekaboo' initializing\n", arch_str);
+    dr_printf("Peekaboo: %s - Client 'peekaboo' initializing\n", arch_str);
 
-	printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
-	printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
+    dr_printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
+    dr_printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }
