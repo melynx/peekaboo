@@ -22,7 +22,6 @@
 #include <inttypes.h>
 #include <signal.h>
 
-
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
@@ -32,11 +31,8 @@
 
 #include "libpeekaboo.h"
 
-
 #ifdef PEEKABOO_SYSCALL
-//#include "drsyscall.h"
-#include "syscalls.h"
-
+    #include "drsyscall.h"
 #endif
 
 #ifdef X86
@@ -351,6 +347,37 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	return DR_EMIT_DEFAULT;
 }
 
+#ifdef PEEKABOO_SYSCALL
+static bool event_filter_syscall(void *drcontext, int sysnum)
+{
+    return true; /* intercept everything */
+}
+
+static bool event_pre_syscall(void *drcontext, int sysnum)
+{
+    drsys_syscall_t *syscall;
+    drmf_status_t res;
+    const char *name = "<unknown>";
+    char buf[256] = {};
+
+    if (drsys_cur_syscall(drcontext, &syscall) == DRMF_SUCCESS)
+        drsys_syscall_name(syscall, &name);
+    dr_printf("Peekaboo: get syscall id %d: %s\n", name, sysnum);
+    res = drsys_iterate_args(drcontext, drsys_iter_arg_cb, &buf);
+    if (res != DRMF_SUCCESS && res != DRMF_ERROR_DETAILS_UNKNOWN)
+        ASSERT(false, "drsys_iterate_args failed post-syscall");
+    dr_printf("Peekaboo: %s\n", buf);
+    /* We can also get the # of args and the type of each arg.
+     * See the drstrace tool for an example of how to do that.
+     */
+    return true; /* execute normally */
+}
+
+static void event_post_syscall(void *drcontext, int sysnum)
+{
+    return;
+}
+#endif
 
 static void event_thread_init(void *drcontext)
 {
