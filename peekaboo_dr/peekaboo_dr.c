@@ -67,7 +67,19 @@
 		}
 	#else
 		char *arch_str = "X86";
-		// TODO: Implement X86 stuff here
+		enum ARCH arch = ARCH_X86;
+		typedef regfile_x86_t regfile_t;
+		void copy_regfile(regfile_t *regfile_ptr, dr_mcontext_t *mc)
+		{
+			regfile_ptr->gpr.reg_eax = mc->eax;
+			regfile_ptr->gpr.reg_ecx = mc->ecx;
+			regfile_ptr->gpr.reg_edx = mc->edx;
+			regfile_ptr->gpr.reg_ebx = mc->ebx;
+			regfile_ptr->gpr.reg_esp = mc->esp;
+			regfile_ptr->gpr.reg_ebp = mc->ebp;
+			regfile_ptr->gpr.reg_esi = mc->esi;
+			regfile_ptr->gpr.reg_edi = mc->edi;
+		}
 	#endif
 #else
 	#ifdef X64
@@ -204,16 +216,16 @@ static void save_regfile(void)
 	dr_get_mcontext(drcontext, &mc);
 	copy_regfile(regfile_ptr, &mc);
 
-	//void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
-	//uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
-	//uint64_t count = size/sizeof(regfile_ref_t);
-	//uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
-	//mem_ref_t *mem_ref_ptr = (mem_ref_t *)drx_buf_get_buffer_ptr(drcontext, memrefs_buf);
-	//mem_ref_t *mem_ref_base = (mem_ref_t *)drx_buf_get_buffer_base(drcontext, memrefs_buf);
-	//size = (uint64_t)mem_ref_ptr - (uint64_t)mem_ref_base;
-	//printf("memref_ptr:%p\n", mem_ref_ptr);
-	//printf("memref_size:%d\n", size);
-	//printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
+	// void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
+	// uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
+	// uint64_t count = size/sizeof(regfile_ref_t);
+	// uint64_t buf_size = drx_buf_get_buffer_size(drcontext, regfile_buf);
+	// mem_ref_t *mem_ref_ptr = (mem_ref_t *)drx_buf_get_buffer_ptr(drcontext, memrefs_buf);
+	// mem_ref_t *mem_ref_base = (mem_ref_t *)drx_buf_get_buffer_base(drcontext, memrefs_buf);
+	// size = (uint64_t)mem_ref_ptr - (uint64_t)mem_ref_base;
+	// printf("memref_ptr:%p\n", mem_ref_ptr);
+	// printf("memref_size:%d\n", size);
+	// printf("memref_count:%llu\n", size/sizeof(mem_ref_t));
 }
 
 static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, opnd_t ref, bool write)
@@ -260,9 +272,15 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	app_pc pc = instr_get_app_pc(where);
 
 	// instrument update to insn_ref, pushes a 64bit pc into the buffer
+	// drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
+	// drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, 0);
+	// drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
+
+	// ZJ; instrument update to insn_ref, pushes a 32bit pc into the buffer
 	drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, 0);
+	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(pc), OPSZ_4, 0);
 	drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
+
 
 	// ZL: insert a write 0 into the stream using dynamorio sanctioned instruction to trigger the flushing of file from trace buffer.
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
@@ -298,15 +316,17 @@ static dr_emit_flags_t save_bb_rawbytes(void *drcontext, void *tag, instrlist_t 
 		uint32_t length = instr_length(drcontext, insn);
 		DR_ASSERT(length <= 16);
 		bytes_map[idx].pc = (uint64_t)instr_get_app_pc(insn);
+
 		bytes_map[idx].size = length;
-    int x;
+    	
+    	int x;
 		for (x=0; x<length; x++)
 		{
 			bytes_map[idx].rawbytes[x] = instr_get_raw_byte(insn, x);
 		}
 	}
-
 	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace->bytes_map);
+
 	return DR_EMIT_DEFAULT;
 }
 
@@ -435,6 +455,6 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	printf("Peekaboo: %s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
-	printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
+	// printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }
