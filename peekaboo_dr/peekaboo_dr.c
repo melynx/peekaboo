@@ -271,16 +271,18 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	int insn_len = instr_length(drcontext, where);
 	app_pc pc = instr_get_app_pc(where);
 
-	// instrument update to insn_ref, pushes a 64bit pc into the buffer
-	// drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
-	// drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, 0);
-	// drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
 
+	#ifdef X86
 	// ZJ; instrument update to insn_ref, pushes a 32bit pc into the buffer
-	drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(pc), OPSZ_4, 0);
-	drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
-
+		drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
+		drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(pc), OPSZ_4, 0);
+		drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
+	#else
+		// instrument update to insn_ref, pushes a 64bit pc into the buffer
+		drx_buf_insert_load_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr);
+		drx_buf_insert_buf_store(drcontext, insn_ref_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, 0);
+		drx_buf_insert_update_buf_ptr(drcontext, insn_ref_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(insn_ref_t));
+	#endif
 
 	// ZL: insert a write 0 into the stream using dynamorio sanctioned instruction to trigger the flushing of file from trace buffer.
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
