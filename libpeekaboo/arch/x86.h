@@ -45,7 +45,6 @@ typedef struct {
 	uint16_t reg_gs;
 } x86_cpu_seg_t;
 
-
 typedef struct regfile_x86{
 	x86_cpu_gr_t gpr;
 } regfile_x86_t;
@@ -54,24 +53,3 @@ void x86_regfile_pp(regfile_x86_t *regfile);
 /* End of Regfile */
 
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
