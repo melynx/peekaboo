@@ -453,6 +453,6 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	printf("Peekaboo: %s - Client 'peekaboo' initializing\n", arch_str);
 
 	printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
-	// printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
+	printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
 
 }
