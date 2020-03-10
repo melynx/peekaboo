@@ -1,11 +1,11 @@
 # Copyright 2019 Chua Zheng Leong
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     https://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,9 +18,10 @@ import struct
 
 from ctypes import Structure, c_uint64, c_uint32, c_uint16, c_uint8, sizeof
 
+
 def read_struct(myfile, mystruct):
     x = mystruct()
-    assert(myfile.readinto(x) == sizeof(mystruct))
+    assert (myfile.readinto(x) == sizeof(mystruct))
     return x
 
 
@@ -44,23 +45,25 @@ class GPR_AMD64(Structure):
                 ('rflags', c_uint64),
                 ('rip', c_uint64)]
 
+
 class SIMD_AMD64(Structure):
-    _fields_ = [('ymm0', c_uint64*4),
-                ('ymm1', c_uint64*4),
-                ('ymm2', c_uint64*4),
-                ('ymm3', c_uint64*4),
-                ('ymm4', c_uint64*4),
-                ('ymm5', c_uint64*4),
-                ('ymm6', c_uint64*4),
-                ('ymm7', c_uint64*4),
-                ('ymm8', c_uint64*4),
-                ('ymm9', c_uint64*4),
-                ('ymm10', c_uint64*4),
-                ('ymm11', c_uint64*4),
-                ('ymm12', c_uint64*4),
-                ('ymm13', c_uint64*4),
-                ('ymm14', c_uint64*4),
-                ('ymm15', c_uint64*4)]
+    _fields_ = [('ymm0', c_uint64 * 4),
+                ('ymm1', c_uint64 * 4),
+                ('ymm2', c_uint64 * 4),
+                ('ymm3', c_uint64 * 4),
+                ('ymm4', c_uint64 * 4),
+                ('ymm5', c_uint64 * 4),
+                ('ymm6', c_uint64 * 4),
+                ('ymm7', c_uint64 * 4),
+                ('ymm8', c_uint64 * 4),
+                ('ymm9', c_uint64 * 4),
+                ('ymm10', c_uint64 * 4),
+                ('ymm11', c_uint64 * 4),
+                ('ymm12', c_uint64 * 4),
+                ('ymm13', c_uint64 * 4),
+                ('ymm14', c_uint64 * 4),
+                ('ymm15', c_uint64 * 4)]
+
 
 class FXSAVE_AREA(Structure):
     _fields_ = [('fcw', c_uint16),
@@ -76,28 +79,40 @@ class FXSAVE_AREA(Structure):
                 ('reserved_3', c_uint16),
                 ('mxcsr', c_uint32),
                 ('mxcsr_mask', c_uint32),
-                ('st_mm', c_uint64*2*8),
-                ('xmm', c_uint64*2*16),
-                ('padding', c_uint8*96)]
+                ('st_mm', c_uint64 * 2 * 8),
+                ('xmm', c_uint64 * 2 * 16),
+                ('padding', c_uint8 * 96)]
 
 
 class RegFileAMD64(Structure):
     _fields_ = [('gpr', GPR_AMD64), ('simd', SIMD_AMD64), ('fxsave', FXSAVE_AREA)]
 
 
+class GPR_X86(Structure):
+    _fields_ = [('eax', c_uint32),
+                ('ecx', c_uint32),
+                ('edx', c_uint32),
+                ('ebx', c_uint32),
+                ('esp', c_uint32),
+                ('ebp', c_uint32),
+                ('esi', c_uint32),
+                ('edi', c_uint32),]
 
-ARCH_INFO = {0:None, 1:None, 2:None, 3:(RegFileAMD64, "AMD64")}
 
-class Metadata(Structure):
-    _fields_ = [('arch', c_uint32), ('version', c_uint32)]
+class RegFileX86(Structure):
+    _fields_ = [('gpr', GPR_X86)]
+
 
 '''
 typedef struct insn_ref {
 	uint64_t pc;
 } insn_ref_t;
 '''
+
+
 class InsnRef(Structure):
     _fields_ = [('pc', c_uint64)]
+
 
 '''
 typedef struct bytes_map {
@@ -106,16 +121,25 @@ typedef struct bytes_map {
 	uint8_t rawbytes[16];
 } bytes_map_t ;
 '''
-class BytesMap(Structure):
-    _fields_ = [('pc', c_uint64), ('size', c_uint32), ('rawbytes', c_uint8*16)]
+
+
+class BytesMap_64(Structure):
+    _fields_ = [('pc', c_uint64), ('size', c_uint32), ('rawbytes', c_uint8 * 16)]
+
+
+class BytesMap_32(Structure):
+    _fields_ = [('pc', c_uint32), ('x86_to_x64', c_uint32), ('size', c_uint32), ('rawbytes', c_uint8 * 16)]
 
 '''
 typedef struct {
 	uint32_t length;	/* how many refs are there*/
 } memref_t;
 '''
+
+
 class MemRef(Structure):
     _fields_ = [('length', c_uint32)]
+
 
 '''
 typedef struct {
@@ -125,8 +149,17 @@ typedef struct {
 	uint32_t status; 	/* 0 for Read, 1 for write */
 } memfile_t;
 '''
+
+
 class MemFile(Structure):
     _fields_ = [('addr', c_uint64), ('value', c_uint64), ('size', c_uint32), ('status', c_uint32)]
+
+
+ARCH_INFO = {0: None, 1: None, 2: (RegFileX86, BytesMap_32, "X86"), 3: (RegFileAMD64, BytesMap_64, "AMD64")}
+
+
+class Metadata(Structure):
+    _fields_ = [('arch', c_uint32), ('version', c_uint32)]
 
 
 class TraceInsn(object):
@@ -138,14 +171,16 @@ class TraceInsn(object):
         self.regfile = None
         pass
 
+
 class MemInfo(object):
     def __init__(self):
         pass
 
+
 class PyPeekaboo(object):
     def __init__(self, trace_path):
         # ensure that path points to a directory...
-        assert(os.path.isdir(trace_path))
+        assert (os.path.isdir(trace_path))
         # ensure that the basic structure is correct
         insn_trace_path = os.path.join(trace_path, 'insn.trace')
         insn_bytemap_path = os.path.join(trace_path, 'insn.bytemap')
@@ -153,12 +188,12 @@ class PyPeekaboo(object):
         memfile_path = os.path.join(trace_path, 'memfile')
         memrefs_path = os.path.join(trace_path, 'memrefs')
         metafile_path = os.path.join(trace_path, 'metafile')
-        assert(os.path.isfile(insn_trace_path))
-        assert(os.path.isfile(insn_bytemap_path))
-        assert(os.path.isfile(regfile_path))
-        assert(os.path.isfile(memfile_path))
-        assert(os.path.isfile(memrefs_path))
-        assert(os.path.isfile(metafile_path))
+        assert (os.path.isfile(insn_trace_path))
+        assert (os.path.isfile(insn_bytemap_path))
+        assert (os.path.isfile(regfile_path))
+        assert (os.path.isfile(memfile_path))
+        assert (os.path.isfile(memrefs_path))
+        assert (os.path.isfile(metafile_path))
 
         # open up the files
         self.insn_trace = open(insn_trace_path, 'rb')
@@ -170,15 +205,16 @@ class PyPeekaboo(object):
 
         # parse metafile
         metadata = read_struct(self.metafile, Metadata)
-        self.regfile_struct, self.arch_str = ARCH_INFO[metadata.arch]
+        self.regfile_struct, self.bytesmap_struct, self.arch_str = ARCH_INFO[metadata.arch]
 
         self.memrefs_offsets = self.load_memrefs_offsets(trace_path)
-        self.num_insn = os.path.getsize(insn_trace_path) / sizeof(InsnRef)
+        self.num_insn = int(os.path.getsize(insn_trace_path) / sizeof(InsnRef))
+        self.num_bytemap = int(os.path.getsize(insn_bytemap_path) / sizeof(self.bytesmap_struct))
 
         # parse the bytemaps
         self.bytesmap = {}
-        bytesmap_entry = BytesMap()
-        while self.insn_bytemap.readinto(bytesmap_entry) == sizeof(bytesmap_entry):
+        for _ in range(self.num_bytemap):
+            bytesmap_entry = read_struct(self.insn_bytemap, self.bytesmap_struct)
             self.bytesmap[bytesmap_entry.pc] = [x for x in bytesmap_entry.rawbytes][:bytesmap_entry.size]
 
     def load_memrefs_offsets(self, trace_path):
@@ -197,7 +233,7 @@ class PyPeekaboo(object):
                         cur_offset += sizeof(MemFile) * memref_entry.length
                     else:
                         # 63rd bit tell us if its valid or not, 0 is valid, 1 is not
-                        offset_file.write(struct.pack('<Q', 2**64-1))
+                        offset_file.write(struct.pack('<Q', 2 ** 64 - 1))
         return open(memrefs_offsets_path, 'rb')
 
     def get_insn(self, insn_id):
@@ -236,7 +272,7 @@ class PyPeekaboo(object):
             bytestring = ''.join(['{:02x}'.format(x) for x in self.bytesmap[addr]])
             insn_set.add(bytestring)
         return insn_set
-    
+
     def pp(self):
         for x in range(self.num_insn):
             self.get_insn(x)
