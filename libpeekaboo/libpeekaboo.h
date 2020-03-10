@@ -87,6 +87,7 @@ typedef struct {
 //------Supported archs declarations-----------------------
 #include "arch/amd64.h"
 #include "arch/aarch64.h"
+#include "arch/x86.h"
 //---------------------------------------------------------
 
 // peekaboo trace definition

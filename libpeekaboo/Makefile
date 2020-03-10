@@ -9,8 +9,8 @@ CFLAGS  = $(WARNINGS) $(OPT) -I$(IDIR) -L$(LDIR)
 
 all: $(TARGET)
 
-libpeekaboo.a: libpeekaboo.o aarch64.o amd64.o
-	ar rcs $(TARGET) libpeekaboo.o aarch64.o amd64.o
+libpeekaboo.a: libpeekaboo.o aarch64.o amd64.o x86.o
+	ar rcs $(TARGET) libpeekaboo.o aarch64.o amd64.o x86.o
 	ranlib libpeekaboo.a
 
 libpeekaboo.o: libpeekaboo.c libpeekaboo.h
@@ -22,7 +22,11 @@ aarch64.o: $(ARCH_DIR)/aarch64.c $(ARCH_DIR)/aarch64.h
 amd64.o: $(ARCH_DIR)/amd64.c $(ARCH_DIR)/amd64.h
 	$(CC) -c $(ARCH_DIR)/amd64.c $(ARCH_DIR)/amd64.h $(CFLAGS)
 
+x86.o: $(ARCH_DIR)/x86.c $(ARCH_DIR)/x86.h
+	$(CC) -c $(ARCH_DIR)/x86.c $(ARCH_DIR)/x86.h $(CFLAGS)
+
 .PHONY: clean
 
 clean:
 	rm -f *.o *.a *.gch $(ARCH_DIR)/*.o $(ARCH_DIR)/*.gch
+

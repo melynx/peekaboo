@@ -230,6 +230,10 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 			trace_ptr->internal->ptr_size = 8;
 			trace_ptr->internal->regfile_size = sizeof(regfile_aarch64_t);
 			break;
+		case ARCH_X86:
+			trace_ptr->internal->ptr_size = 4;
+			trace_ptr->internal->regfile_size = sizeof(regfile_x86_t);
+			break;
 		default:
 			trace_ptr->internal->ptr_size = 0;
 			trace_ptr->internal->regfile_size = 0;
@@ -335,6 +339,9 @@ void regfile_pp(peekaboo_insn_t *insn)
 			break;
 		case ARCH_AARCH64:
 			aarch64_regfile_pp(insn->regfile);
+			break;
+		case ARCH_X86:
+			x86_regfile_pp(insn->regfile);
 			break;
 		default:
 			printf("Unsupported Architecture!\n");

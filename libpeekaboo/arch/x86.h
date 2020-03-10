@@ -14,6 +14,42 @@
  * limitations under the License.
  */
 
-typedef struct {
+#ifndef __LIBPEEKABOO_X86_H__
+#define __LIBPEEKABOO_X86_H__
 
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <inttypes.h>
+
+#include "libpeekaboo.h"
+
+/* Regfile */
+typedef struct {
+	uint32_t reg_eax;
+	uint32_t reg_ecx;
+	uint32_t reg_edx;
+	uint32_t reg_ebx;
+	uint32_t reg_esp;
+	uint32_t reg_ebp;
+	uint32_t reg_esi;
+	uint32_t reg_edi;
+} x86_cpu_gr_t;
+
+typedef struct {
+	uint16_t reg_cs;
+	uint16_t reg_ss;
+	uint16_t reg_ds;
+	uint16_t reg_es;
+	uint16_t reg_fs;
+	uint16_t reg_gs;
+} x86_cpu_seg_t;
+
+typedef struct regfile_x86{
+	x86_cpu_gr_t gpr;
 } regfile_x86_t;
+
+void x86_regfile_pp(regfile_x86_t *regfile);
+/* End of Regfile */
+
+#endif
