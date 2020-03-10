@@ -10,9 +10,9 @@ from other tools to peekaboo format.
 
 ## Architectures
 ### Currently Support
-AMD64, AARCH64
+AMD64, AARCH64, X86
 ### Planned Support
-X86, AARCH32
+AARCH32
 
 ## libpeekaboo API
 Build a static library:
