@@ -40,10 +40,6 @@ This component requires Dr.Memory. (https://github.com/DynamoRIO/drmemory/wiki/D
 DynamoRIO_DIR=($DynamoRIO_PATH) DrMemoryFramework_DIR=(DrMemory_drmf_path) cmake .. -DSYSCALL=ON
 make
 ```
-Before you run it, you need to add the directory of libdrsyscall.so to your LD_LIBRARY_PATH. It should be inside of DrMemory/drmf/lib64/ or DrMemory/drmf/lib32
-```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libdrsyscall
-```
 ### How to run
 Say, you want to run with command ls in 64-bit mode:
 ```
