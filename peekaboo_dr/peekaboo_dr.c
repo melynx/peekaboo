@@ -379,7 +379,7 @@ static void event_thread_init(void *drcontext)
 	printf("Peekaboo: Created trace : %s\n", buf);
 	printf("Peekaboo: Arch: %d\n", arch);
 	printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
-	char path[256];
+	char path[512];
 	sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
 	system(path);
 }
