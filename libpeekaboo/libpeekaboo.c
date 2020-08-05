@@ -308,7 +308,11 @@ peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
 	// get the rawbytes for the instruction
 	bytes_map_t *bytes_map = find_bytes_map(insn->addr, trace);
 
-	if (!bytes_map) exit(1);
+	if (!bytes_map)
+	{
+	    printf("libpeekaboo: Error. Cannot find instruction (ID:%ld) at 0x%"PRIx64" in bytes_map. Terminated!\n", id, insn->addr);
+	    exit(1);
+	}
 
 	insn->size = bytes_map->size;
 	memcpy(insn->rawbytes, bytes_map->rawbytes, 16);
