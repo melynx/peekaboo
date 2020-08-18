@@ -273,7 +273,11 @@ size_t get_regfile_size(peekaboo_trace_t *trace)
 
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
 {
-	if (!id) exit(1);
+	if (!id)
+	{
+		printf("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
+		exit(1);
+	}
 
 	uint64_t addr = 0;
 	size_t ptr_size = get_ptr_size(trace);
@@ -285,7 +289,11 @@ uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
 
 size_t get_num_mem(size_t id, peekaboo_trace_t *trace)
 {
-	if (!id) exit(1);
+	if (!id)
+	{
+		printf("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
+		exit(1);
+	}
 
 	size_t num_mem = 0;
 	fseek(trace->memrefs, (id-1) * sizeof(memref_t), SEEK_SET);
@@ -313,13 +321,16 @@ peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
 	    printf("libpeekaboo: Error. Cannot find instruction (ID:%ld) at 0x%"PRIx64" in bytes_map. Terminated!\n", id, insn->addr);
 	    exit(1);
 	}
-
 	insn->size = bytes_map->size;
 	memcpy(insn->rawbytes, bytes_map->rawbytes, 16);
 
 	// get the number of mem operands
 	insn->num_mem = get_num_mem(id, trace);
-	if (insn->num_mem > 8) exit(1);
+	if (insn->num_mem > 8)
+	{
+		printf("libpeekaboo: Error. Instruction (ID:%ld) at 0x%"PRIx64" has more than 8 memory ops. Terminated!\n", id, insn->addr);
+		exit(1);
+	}
 	fseek(trace->memrefs_offsets, (id-1) * sizeof(size_t), SEEK_SET);
 	size_t memfile_offset;
 	fread(&memfile_offset, sizeof(size_t), 1, trace->memrefs_offsets);
@@ -348,7 +359,7 @@ void regfile_pp(peekaboo_insn_t *insn)
 			x86_regfile_pp(insn->regfile);
 			break;
 		default:
-			printf("Unsupported Architecture!\n");
+			printf("libpeekaboo: Unsupported Architecture!\n");
 			break;
 	}
 }
