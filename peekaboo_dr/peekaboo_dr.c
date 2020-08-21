@@ -56,6 +56,7 @@
 			regfile_ptr->gpr.reg_r14 = mc->r14;
 			regfile_ptr->gpr.reg_r15 = mc->r15;
 			regfile_ptr->gpr.reg_rflags = mc->rflags;
+			// KH: It actually stores 0 into gpr.reg_rip
 			regfile_ptr->gpr.reg_rip = (uint64_t) mc->rip;
 			// printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
 
@@ -206,15 +207,17 @@ static dr_signal_action_t event_signal(void *drcontext, dr_siginfo_t *info)
 }
 
 
-static void save_regfile(void)
+static void save_regfile(app_pc pc)
 {
 	void *drcontext = dr_get_current_drcontext();
 	regfile_t *regfile_ptr;
 	regfile_ptr = (regfile_t *) drx_buf_get_buffer_ptr(drcontext, regfile_buf);
 
+	
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
 	copy_regfile(regfile_ptr, &mc);
+	regfile_ptr->gpr.reg_rip = (uint64_t) pc;
 
 	// void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
 	// uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
@@ -282,8 +285,7 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 
 	// ZL: insert a write 0 into the stream using dynamorio sanctioned instruction to trigger the flushing of file from trace buffer.
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(regfile_t, gpr));
-
+	drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, 0);
 
 	// ZL: insert write to store mem_count into memrefs
 	drx_buf_insert_load_buf_ptr(drcontext, memrefs_buf, ilist, where, reg_ptr);
@@ -293,6 +295,16 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	// instruments a clean call to save the register info
 	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
+
+	// KH: In the previous clean call, it cannot store application's pc into regfile's RIP. So we save it here. 
+	#ifdef X86
+		#ifdef X64
+		drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, offsetof(amd64_cpu_gr_t, reg_rip));
+		#else
+		// We currently don't have eip reg
+		#endif
+	#endif
+	
 	drx_buf_insert_update_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr, DR_REG_NULL, sizeof(regfile_t));
 
 
@@ -432,7 +444,7 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 
-    drmgr_register_signal_event(event_signal);
+    // drmgr_register_signal_event(event_signal);
 	dr_register_exit_event(event_exit);
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
