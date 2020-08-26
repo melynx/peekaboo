@@ -24,6 +24,8 @@
 #define MAX_PATH (256)
 #define LIBPEEKABOO_VER 1
 
+#define PEEKABOO_DIE(...) {printf(__VA_ARGS__); exit(1);}
+
 // Bunch of type definitions for register sizes
 typedef union {
 	uint64_t r;
@@ -138,6 +140,7 @@ size_t num_regfile(peekaboo_trace_t *);
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
 size_t get_num_insn(peekaboo_trace_t *);
 peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace);
+void free_peekaboo_insn(peekaboo_insn_t *insn_ptr);
 void regfile_pp(peekaboo_insn_t *insn);
 
 #endif

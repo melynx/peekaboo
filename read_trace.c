@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     for (int x=1; x<=num_insn; x++)
     {
         peekaboo_insn_t *insn = get_peekaboo_insn(x, &mytrace);
-        printf("%ld: 0x%"PRIx64"", x, insn->addr);
+        printf("%d: 0x%"PRIx64"", x, insn->addr);
         printf("\t size: %ld", insn->size);
         printf("\t rawbytes: ");
         for (int y = 0; y < insn->size; y++)
@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
         printf("\n");
         regfile_pp(insn);
         printf("\n");
+        free_peekaboo_insn(insn);
     }
 
     return 0;

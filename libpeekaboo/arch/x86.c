@@ -12,5 +12,5 @@ void x86_regfile_pp(regfile_x86_t *regfile)
 						"edi"};
 
 	for (int x=0; x < 8; x++)
-		printf("%s:%" PRIx64 "\n", regname[x], ((uint32_t *)&(regfile->gpr))[x]);
+		printf("%s:%" PRIx32 "\n", regname[x], ((uint32_t *)&(regfile->gpr))[x]);
 }

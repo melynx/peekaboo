@@ -26,7 +26,7 @@
 int create_folder(char *name, char *output, uint32_t max_size)
 {
 	DIR *dir = opendir(name);
-	realpath(name, output);
+	char *resolved_name = realpath(name, output);
 	if (errno == ENOENT)
 		mkdir(name, S_IRWXU|S_IRWXG|S_IROTH);
 	else
@@ -127,8 +127,7 @@ void load_bytes_map(peekaboo_trace_t *trace)
 	printf("Found %lu instructions in bytemap...\n", num_maps);
 	if (fread(trace->internal->bytes_map_buf, sizeof(bytes_map_t), num_maps, trace->bytes_map) != num_maps)
 	{
-		printf("BYTES MAP READ ERROR!\n");
-		exit(1);
+		PEEKABOO_DIE("libpeekaboo: BYTES MAP READ ERROR!\n");
 	}
 	printf("\n");
 	return ;
@@ -198,16 +197,22 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
 	trace_ptr->insn_trace = fopen(path, "rb");
+	if (trace_ptr->insn_trace == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
 	trace_ptr->bytes_map = fopen(path, "rb");
+	if (trace_ptr->bytes_map == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");
 	trace_ptr->regfile = fopen(path, "rb");
+	if (trace_ptr->regfile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
 	trace_ptr->memfile = fopen(path, "rb");
+	if (trace_ptr->memfile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs");
 	trace_ptr->memrefs = fopen(path, "rb");
+	if (trace_ptr->memrefs == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
 	trace_ptr->metafile = fopen(path, "rb");
+	if (trace_ptr->metafile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 
 	load_memrefs_offsets(dir_path, trace_ptr);
 
@@ -218,7 +223,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 
 	// setup the information
 	metadata_hdr_t meta;
-	fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
+	size_t fread_bytes = fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	trace_ptr->internal->arch = meta.arch;
 	switch (meta.arch)
 	{
@@ -273,31 +278,23 @@ size_t get_regfile_size(peekaboo_trace_t *trace)
 
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
 {
-	if (!id)
-	{
-		printf("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
-		exit(1);
-	}
+	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
 
 	uint64_t addr = 0;
 	size_t ptr_size = get_ptr_size(trace);
 
 	fseek(trace->insn_trace, (id-1) * ptr_size, SEEK_SET);
-	fread(&addr, ptr_size, 1, trace->insn_trace);
+	size_t fread_bytes = fread(&addr, ptr_size, 1, trace->insn_trace);
 	return addr;
 }
 
 size_t get_num_mem(size_t id, peekaboo_trace_t *trace)
 {
-	if (!id)
-	{
-		printf("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
-		exit(1);
-	}
+	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
 
 	size_t num_mem = 0;
 	fseek(trace->memrefs, (id-1) * sizeof(memref_t), SEEK_SET);
-	fread(&num_mem, sizeof(memref_t), 1, trace->memrefs);
+	size_t fread_bytes = fread(&num_mem, sizeof(memref_t), 1, trace->memrefs);
 	return num_mem;
 }
 
@@ -316,30 +313,24 @@ peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace)
 	// get the rawbytes for the instruction
 	bytes_map_t *bytes_map = find_bytes_map(insn->addr, trace);
 
-	if (!bytes_map)
-	{
-	    printf("libpeekaboo: Error. Cannot find instruction (ID:%ld) at 0x%"PRIx64" in bytes_map. Terminated!\n", id, insn->addr);
-	    exit(1);
-	}
+	if (!bytes_map) PEEKABOO_DIE("libpeekaboo: Error. Cannot find instruction (ID:%ld) at 0x%"PRIx64" in bytes_map. Terminated!\n", id, insn->addr);
+
 	insn->size = bytes_map->size;
 	memcpy(insn->rawbytes, bytes_map->rawbytes, 16);
 
 	// get the number of mem operands
 	insn->num_mem = get_num_mem(id, trace);
-	if (insn->num_mem > 8)
-	{
-		printf("libpeekaboo: Error. Instruction (ID:%ld) at 0x%"PRIx64" has more than 8 memory ops. Terminated!\n", id, insn->addr);
-		exit(1);
-	}
+	if (insn->num_mem > 8) PEEKABOO_DIE("libpeekaboo: Error. Instruction (ID:%ld) at 0x%"PRIx64" has more than 8 memory ops. Terminated!\n", id, insn->addr);
+
 	fseek(trace->memrefs_offsets, (id-1) * sizeof(size_t), SEEK_SET);
 	size_t memfile_offset;
-	fread(&memfile_offset, sizeof(size_t), 1, trace->memrefs_offsets);
+	size_t fread_bytes = fread(&memfile_offset, sizeof(size_t), 1, trace->memrefs_offsets);
 	fseek(trace->memfile, memfile_offset, SEEK_SET);
-	fread(insn->mem, sizeof(memfile_t), insn->num_mem, trace->memfile);
-
+	fread_bytes = fread(insn->mem, sizeof(memfile_t), insn->num_mem, trace->memfile);
+	
 	// read the regfile...
 	fseek(trace->regfile, (id-1) * regfile_size, SEEK_SET);
-	fread(insn->regfile, regfile_size, 1, trace->regfile);
+	fread_bytes = fread(insn->regfile, regfile_size, 1, trace->regfile);
 
 	// done! return
 	return insn;
@@ -359,7 +350,21 @@ void regfile_pp(peekaboo_insn_t *insn)
 			x86_regfile_pp(insn->regfile);
 			break;
 		default:
-			printf("libpeekaboo: Unsupported Architecture!\n");
+			PEEKABOO_DIE("libpeekaboo: Unsupported Architecture!\n");
 			break;
+	}
+}
+
+void free_peekaboo_insn(peekaboo_insn_t *insn_ptr)
+{
+	if (insn_ptr != NULL)
+	{
+		if (insn_ptr->regfile != NULL)
+		{
+			free(insn_ptr->regfile);
+			insn_ptr->regfile = NULL;
+		}
+		free(insn_ptr);
+		insn_ptr = NULL;
 	}
 }
