@@ -105,7 +105,7 @@ peekaboo_trace_t *create_trace(char *name)
 	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 
 	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace_ptr->insn_trace);
-	create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace_ptr->bytes_map);
+	//create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace_ptr->bytes_map);
 	create_trace_file(dir_path, "regfile", MAX_PATH, &trace_ptr->regfile);
 	create_trace_file(dir_path, "memfile", MAX_PATH, &trace_ptr->memfile);
 	create_trace_file(dir_path, "memrefs", MAX_PATH, &trace_ptr->memrefs);
@@ -198,7 +198,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
 	trace_ptr->insn_trace = fopen(path, "rb");
 	if (trace_ptr->insn_trace == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
-	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
+	snprintf(path, MAX_PATH, "%s/../%s", dir_path, "insn.bytemap");
 	trace_ptr->bytes_map = fopen(path, "rb");
 	if (trace_ptr->bytes_map == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");

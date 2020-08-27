@@ -57,8 +57,8 @@
 			regfile_ptr->gpr.reg_r15 = mc->r15;
 			regfile_ptr->gpr.reg_rflags = mc->rflags;
 			// KH: It actually stores 0 into gpr.reg_rip
-			regfile_ptr->gpr.reg_rip = (uint64_t) mc->rip;
-			// printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
+			regfile_ptr->gpr.reg_rip = (uint64_t) mc->xip;
+			//printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
 
 			// here, we cast the simd structure into an array of uint256_t
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
@@ -123,6 +123,8 @@ static client_id_t client_id;
 static void *mutex;     /* for multithread support */
 static uint64 num_refs; /* keep a global instruction reference count */
 
+static process_id_t root_pid, ppid, pid; /* root process pid, parent pid & pid */
+static FILE *bytes_map_file;
 static int tls_idx;
 
 static drx_buf_t *insn_ref_buf;
@@ -382,12 +384,11 @@ static void init_thread_in_process(void *drcontext)
 	DR_ASSERT(data != NULL);
 	drmgr_set_tls_field(drcontext, tls_idx, data);
 
-	int pid = dr_get_process_id();
-	int tid = dr_get_thread_id(drcontext);
-	snprintf(buf, 256, "%s-%d-%d", dr_get_application_name(), pid, tid);
+	snprintf(buf, 256, "%s-%d/%d", dr_get_application_name(), root_pid, pid);
 
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
+	data->peek_trace->bytes_map = bytes_map_file;
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
 	
 	char path[512];
@@ -404,6 +405,26 @@ static void init_thread_in_process(void *drcontext)
 
 static void event_thread_init(void *drcontext)
 {
+	root_pid = dr_get_process_id();
+	ppid = 0;
+	pid = root_pid;
+
+	char dir_path[256], name[256];
+	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
+	if (create_folder(name, dir_path, 256))
+	{
+		fprintf(stderr, "Peekaboo: Unable to create directory %s.\n", name);
+		exit(1);
+	}
+
+	create_trace_file(dir_path, "insn.bytemap", 256, &bytes_map_file);
+
+	snprintf(name, 256, "%s/process_tree.txt", dir_path);
+	FILE * fp;
+	fp = fopen(name, "w");
+	fprintf(fp, "%d-%d\n", dr_get_parent_id(), root_pid);
+	fclose(fp);
+
 	printf("Peekaboo: Main thread starts. ");
 	init_thread_in_process(drcontext);
 }
@@ -411,6 +432,16 @@ static void event_thread_init(void *drcontext)
 #ifdef UNIX
 static void fork_init(void *drcontext)
 {
+	ppid = pid;
+	pid = dr_get_process_id();
+	
+	char name[256];
+	snprintf(name, 256, "%s-%d/process_tree.txt", dr_get_application_name(), root_pid);
+	FILE * fp;
+	fp = fopen(name, "a");
+	fprintf(fp, "%d-%d\n", ppid, pid);
+	fclose(fp);
+
 	printf("Peekaboo: Application process forks. ");
 	init_thread_in_process(drcontext);
 }

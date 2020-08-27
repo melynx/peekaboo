@@ -56,6 +56,7 @@ enum ARCH {
 
 // Misc functions
 int create_folder(char *name, char *output, uint32_t max_size);
+int create_trace_file(char *dir_path, char *filename, int size, FILE **output);
 // end
 
 //-----common structure declaration-----------------------
