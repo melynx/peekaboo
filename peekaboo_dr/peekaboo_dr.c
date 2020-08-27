@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <signal.h>
-
+#include <unistd.h>
 
 #include "dr_api.h"
 #include "drmgr.h"
@@ -374,7 +374,7 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	return DR_EMIT_DEFAULT;
 }
 
-static void event_thread_init(void *drcontext)
+static void init_thread_in_process(void *drcontext)
 {
 	char buf[256];
 	per_thread_t *data = dr_thread_alloc(drcontext, sizeof(per_thread_t));
@@ -388,13 +388,32 @@ static void event_thread_init(void *drcontext)
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
-	printf("Peekaboo: Created trace : %s\n", buf);
-	printf("Peekaboo: Arch: %d\n", arch);
-	printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
+	
 	char path[512];
-	sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
-	system(path);
+	sprintf(path, "%s/proc_map", buf);
+
+	if(access(path, F_OK ) == -1 ) 
+	{
+		sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
+    	system(path);
+	}
+
+	printf("Created a new trace : %s\n", buf);
 }
+
+static void event_thread_init(void *drcontext)
+{
+	printf("Peekaboo: Main thread starts. ");
+	init_thread_in_process(drcontext);
+}
+
+#ifdef UNIX
+static void fork_init(void *drcontext)
+{
+	printf("Peekaboo: Application process forks. ");
+	init_thread_in_process(drcontext);
+}
+#endif
 
 static void event_thread_exit(void *drcontext)
 {
@@ -419,6 +438,11 @@ static void event_exit(void)
 	    !drmgr_unregister_bb_insertion_event(per_insn_instrument) ||
 	    drreg_exit() != DRREG_SUCCESS)
 	    DR_ASSERT(false);
+
+#ifdef UNIX
+	if (!dr_unregister_fork_init_event(fork_init))
+		DR_ASSERT(false);
+#endif
 
 	dr_mutex_destroy(mutex);
 	drmgr_exit();
@@ -446,6 +470,10 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
     // drmgr_register_signal_event(event_signal);
 	dr_register_exit_event(event_exit);
+#ifdef UNIX
+	// KH: dr_register_fork_init_event only support UNIX
+    dr_register_fork_init_event(fork_init);
+#endif
 	drmgr_register_thread_init_event(event_thread_init);
 	drmgr_register_thread_exit_event(event_thread_exit);
 	drmgr_register_bb_instrumentation_event(save_bb_rawbytes, per_insn_instrument, NULL);
@@ -466,5 +494,6 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 
 	printf("Peekaboo: Binary being traced: %s\n", dr_get_application_name());
 	printf("Peekaboo: Number of SIMD slots: %d\n", MCXT_NUM_SIMD_SLOTS);
+	printf("Peekaboo: libpeekaboo Version: %d\n", LIBPEEKABOO_VER);
 
 }
