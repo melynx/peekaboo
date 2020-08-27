@@ -123,7 +123,7 @@ static client_id_t client_id;
 static void *mutex;     /* for multithread support */
 static uint64 num_refs; /* keep a global instruction reference count */
 
-static process_id_t root_pid, ppid, pid; /* root process pid, parent pid & pid */
+static process_id_t root_pid; /* root process pid */
 static FILE *bytes_map_file;
 static int tls_idx;
 
@@ -384,6 +384,7 @@ static void init_thread_in_process(void *drcontext)
 	DR_ASSERT(data != NULL);
 	drmgr_set_tls_field(drcontext, tls_idx, data);
 
+	int pid = dr_get_process_id();
 	snprintf(buf, 256, "%s-%d/%d", dr_get_application_name(), root_pid, pid);
 
 	data->num_refs = 0;
@@ -406,8 +407,6 @@ static void init_thread_in_process(void *drcontext)
 static void event_thread_init(void *drcontext)
 {
 	root_pid = dr_get_process_id();
-	ppid = 0;
-	pid = root_pid;
 
 	char dir_path[256], name[256];
 	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
@@ -431,15 +430,12 @@ static void event_thread_init(void *drcontext)
 
 #ifdef UNIX
 static void fork_init(void *drcontext)
-{
-	ppid = pid;
-	pid = dr_get_process_id();
-	
+{	
 	char name[256];
 	snprintf(name, 256, "%s-%d/process_tree.txt", dr_get_application_name(), root_pid);
 	FILE * fp;
 	fp = fopen(name, "a");
-	fprintf(fp, "%d-%d\n", ppid, pid);
+	fprintf(fp, "%d-%d\n", dr_get_parent_id(), dr_get_process_id());
 	fclose(fp);
 
 	printf("Peekaboo: Application process forks. ");
@@ -461,8 +457,11 @@ static void event_thread_exit(void *drcontext)
 static void event_exit(void)
 {
 	//dr_log(NULL, DR_LOG_ALL, 1, "'peekaboo': Total number of instructions seen: " SZFMT "\n", num_refs);
-	printf("Peekaboo: Total number of instructions seen: " SZFMT "\n", num_refs);
-
+	int pid = dr_get_process_id();
+	if (pid != root_pid)
+		printf("Peekaboo: Child process (PID:%d) exits. Total number of instructions seen: " SZFMT "\n", pid, num_refs);
+	else
+		printf("Peekaboo: Parent process (PID:%d) exits. Total number of instructions seen: " SZFMT "\n", pid, num_refs);
 
 	if (!drmgr_unregister_tls_field(tls_idx) ||
 	    !drmgr_unregister_thread_init_event(event_thread_init) ||
