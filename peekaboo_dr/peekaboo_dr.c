@@ -177,37 +177,39 @@ static void flush_map(void *drcontext, void *buf_base, size_t size)
 
 */
 
+
+// KH: This function actually messes up the buffer flush. Need to fix it! 
 static dr_signal_action_t event_signal(void *drcontext, dr_siginfo_t *info)
 {
-    /* Flush data in buffers when receiving SIGINT(2), SIGABRT(6), SIGSEGV(11) */
-    if ((info->sig == SIGINT) || (info->sig == SIGABRT) || (info->sig ==  SIGSEGV))
-    {
-        printf("Peekaboo: Signal %d caught.\n", info->sig);
-        per_thread_t *data;
-        data = drmgr_get_tls_field(drcontext, tls_idx);
-        dr_mutex_lock(mutex);
+	/* Flush data in buffers when receiving SIGINT(2), SIGABRT(6), SIGSEGV(11) */
+	if ((info->sig == SIGINT) || (info->sig == SIGABRT) || (info->sig ==  SIGSEGV))
+	{
+		printf("Peekaboo: Signal %d caught.\n", info->sig);
+		per_thread_t *data;
+		data = drmgr_get_tls_field(drcontext, tls_idx);
+		dr_mutex_lock(mutex);
 
-        flush_insnrefs(drcontext, insn_ref_buf, INSN_REF_SIZE);
-        flush_memfile(drcontext, memfile_buf, MEMFILE_SIZE);
-        flush_memrefs(drcontext, memrefs_buf, MEM_REFS_SIZE);
-        flush_regfile(drcontext, regfile_buf, REG_BUF_SIZE);
+		flush_insnrefs(drcontext, insn_ref_buf, INSN_REF_SIZE);
+		flush_memfile(drcontext, memfile_buf, MEMFILE_SIZE);
+		flush_memrefs(drcontext, memrefs_buf, MEM_REFS_SIZE);
+		flush_regfile(drcontext, regfile_buf, REG_BUF_SIZE);
 
-        fflush(data->peek_trace->insn_trace);
-        fflush(data->peek_trace->bytes_map);
-        fflush(data->peek_trace->regfile);
-        fflush(data->peek_trace->memfile);
-        fflush(data->peek_trace->memrefs);
-        fflush(data->peek_trace->metafile);
-        
-        dr_mutex_unlock(mutex);
-    }
+		fflush(data->peek_trace->insn_trace);
+		fflush(data->peek_trace->bytes_map);
+		fflush(data->peek_trace->regfile);
+		fflush(data->peek_trace->memfile);
+		fflush(data->peek_trace->memrefs);
+		fflush(data->peek_trace->metafile);
+			
+		dr_mutex_unlock(mutex);
+	}
 
-    /* Deliver the signal to app */
-    return DR_SIGNAL_DELIVER;
+	/* Deliver the signal to app */
+	return DR_SIGNAL_DELIVER;
 }
 
 
-static void save_regfile(app_pc pc)
+static void save_regfile()
 {
 	void *drcontext = dr_get_current_drcontext();
 	regfile_t *regfile_ptr;
@@ -217,7 +219,6 @@ static void save_regfile(app_pc pc)
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
 	copy_regfile(regfile_ptr, &mc);
-	regfile_ptr->gpr.reg_rip = (uint64_t) pc;
 
 	// void *base = drx_buf_get_buffer_base(drcontext, regfile_buf);
 	// uint64_t size = ((uint64_t)(regfile_ptr+1) - (uint64_t)base);
@@ -296,10 +297,10 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
 
-	// KH: In the previous clean call, it cannot store application's pc into regfile's RIP. So we save it here. 
+	// KH: We save app pc into reg_rip, though it is not the actually rip.  
 	#ifdef X86
 		#ifdef X64
-		drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, offsetof(amd64_cpu_gr_t, reg_rip));
+			drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, offsetof(regfile_amd64_t, gpr) + offsetof(amd64_cpu_gr_t, reg_rip));
 		#else
 		// We currently don't have eip reg
 		#endif
@@ -329,7 +330,7 @@ static dr_emit_flags_t save_bb_rawbytes(void *drcontext, void *tag, instrlist_t 
 
 		bytes_map[idx].size = length;
     	
-    	int x;
+		int x;
 		for (x=0; x<length; x++)
 		{
 			bytes_map[idx].rawbytes[x] = instr_get_raw_byte(insn, x);
@@ -395,7 +396,7 @@ static void init_thread_in_process(void *drcontext)
 	if(access(path, F_OK ) == -1 ) 
 	{
 		sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
-    	system(path);
+		system(path);
 	}
 
 	printf("Created a new trace : %s\n", buf);
@@ -468,7 +469,8 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
 	drutil_init();
 	drx_init();
 
-    // drmgr_register_signal_event(event_signal);
+	// drmgr_register_signal_event(event_signal);
+
 	dr_register_exit_event(event_exit);
 #ifdef UNIX
 	// KH: dr_register_fork_init_event only support UNIX

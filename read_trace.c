@@ -34,7 +34,11 @@ int main(int argc, char *argv[])
         printf("\t size: %ld", insn->size);
         printf("\t rawbytes: ");
         for (int y = 0; y < insn->size; y++)
+        {
+            if (insn->rawbytes[y] < 16)
+                printf("0");
             printf("%"PRIx8" ", insn->rawbytes[y]);
+        }
         printf("\n");
         regfile_pp(insn);
         printf("\n");
