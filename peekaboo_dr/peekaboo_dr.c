@@ -338,7 +338,9 @@ static dr_emit_flags_t save_bb_rawbytes(void *drcontext, void *tag, instrlist_t 
 			bytes_map[idx].rawbytes[x] = instr_get_raw_byte(insn, x);
 		}
 	}
+	dr_mutex_lock(mutex);
 	fwrite(bytes_map, sizeof(bytes_map_t), idx, data->peek_trace->bytes_map);
+	dr_mutex_unlock(mutex);
 
 	return DR_EMIT_DEFAULT;
 }
