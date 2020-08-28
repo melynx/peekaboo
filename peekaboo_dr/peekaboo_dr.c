@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "dr_api.h"
 #include "drmgr.h"
@@ -418,13 +419,20 @@ static void event_thread_init(void *drcontext)
 		exit(1);
 	}
 
+
+	dr_mutex_lock(mutex);
 	create_trace_file(dir_path, "insn.bytemap", 256, &bytes_map_file);
+	snprintf(name, 256, "%s/insn.bytemap", dir_path);
+	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);
 
 	snprintf(name, 256, "%s/process_tree.txt", dir_path);
 	FILE * fp;
 	fp = fopen(name, "w");
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), root_pid);
 	fclose(fp);
+	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);
+	dr_mutex_unlock(mutex);
+
 
 	printf("Peekaboo: Main thread starts. ");
 	init_thread_in_process(drcontext);
@@ -436,9 +444,16 @@ static void fork_init(void *drcontext)
 	char name[256];
 	snprintf(name, 256, "%s-%d/process_tree.txt", dr_get_application_name(), root_pid);
 	FILE * fp;
+	dr_mutex_lock(mutex);
 	fp = fopen(name, "a");
+	if (fp == NULL)
+	{
+		fprintf(stderr, "Peekaboo: Cannot append to process tree!");
+		exit(1);
+	}
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), dr_get_process_id());
 	fclose(fp);
+	dr_mutex_unlock(mutex);
 
 	printf("Peekaboo: Application process forks. ");
 	init_thread_in_process(drcontext);
