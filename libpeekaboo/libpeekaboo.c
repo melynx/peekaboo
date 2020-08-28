@@ -98,7 +98,7 @@ peekaboo_trace_t *create_trace(char *name)
 
 	if (create_folder(name, dir_path, MAX_PATH))
 	{
-		fprintf(stderr, "Unable to create directory %s.\n", name);
+		fprintf(stderr, "libpeekaboo: Unable to create directory %s.\n", name);
 		return NULL;
 	}
 
@@ -165,7 +165,7 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 		rewind(trace->memrefs);
 		do {
 			read_size = fread(buffer, sizeof(memref_t), 1024, trace->memrefs);
-      int x;
+			int x;
 			for (x=0; x<read_size; x++)
 			{
 				if (buffer[x].length)
@@ -197,22 +197,29 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.trace");
 	trace_ptr->insn_trace = fopen(path, "rb");
-	if (trace_ptr->insn_trace == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->insn_trace == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/../%s", dir_path, "insn.bytemap");
 	trace_ptr->bytes_map = fopen(path, "rb");
-	if (trace_ptr->bytes_map == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->bytes_map == NULL) 
+	{
+		// Support legacy trace format
+		snprintf(path, MAX_PATH, "%s/%s", dir_path, "insn.bytemap");
+		trace_ptr->bytes_map = fopen(path, "rb");
+		if (trace_ptr->bytes_map == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load bytes_map\n");
+		fprintf(stderr, "libpeekaboo: Load bytes_map in legacy mode.\n");
+	}
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "regfile");
 	trace_ptr->regfile = fopen(path, "rb");
-	if (trace_ptr->regfile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->regfile == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memfile");
 	trace_ptr->memfile = fopen(path, "rb");
-	if (trace_ptr->memfile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->memfile == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs");
 	trace_ptr->memrefs = fopen(path, "rb");
-	if (trace_ptr->memrefs == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->memrefs == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load %s\n", path);
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "metafile");
 	trace_ptr->metafile = fopen(path, "rb");
-	if (trace_ptr->metafile == NULL) PEEKABOO_DIE("Peekaboo: Unable to load %s\n", path);
+	if (trace_ptr->metafile == NULL) PEEKABOO_DIE("libpeekaboo: Unable to load %s\n", path);
 
 	load_memrefs_offsets(dir_path, trace_ptr);
 
