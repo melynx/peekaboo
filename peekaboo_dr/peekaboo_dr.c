@@ -126,6 +126,7 @@ static uint64 num_refs; /* keep a global instruction reference count */
 
 static process_id_t root_pid; /* root process pid */
 static FILE *bytes_map_file;
+static char trace_dir[256];
 static int tls_idx;
 
 static drx_buf_t *insn_ref_buf;
@@ -388,7 +389,7 @@ static void init_thread_in_process(void *drcontext)
 	drmgr_set_tls_field(drcontext, tls_idx, data);
 
 	int pid = dr_get_process_id();
-	snprintf(buf, 256, "%s-%d/%d", dr_get_application_name(), root_pid, pid);
+	snprintf(buf, 256, "%s/%d", trace_dir, pid);
 
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
@@ -404,23 +405,26 @@ static void init_thread_in_process(void *drcontext)
 		system(path);
 	}
 
-	printf("Created a new trace : %s\n", buf);
+	printf("Created a new trace for %d\n", pid);
 }
 
 static void event_thread_init(void *drcontext)
 {
 	root_pid = dr_get_process_id();
 
-	char dir_path[256], name[256];
+	char name[256];
 	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
-	if (create_folder(name, dir_path, 256))	PEEKABOO_DIE("Peekaboo: Unable to create directory %s.\n", name);
+	if (create_folder(name, trace_dir, 256))	PEEKABOO_DIE("Peekaboo: Unable to create directory %s.\n", name);
+	//char *resolved_name = realpath(name, trace_dir);
+	//fprintf(stderr, "I am here~ %s ; %s; \n", trace_dir, name);
+
 
 	dr_mutex_lock(mutex);
-	create_trace_file(dir_path, "insn.bytemap", 256, &bytes_map_file);
-	snprintf(name, 256, "%s/insn.bytemap", dir_path);
+	create_trace_file(trace_dir, "insn.bytemap", 256, &bytes_map_file);
+	snprintf(name, 256, "%s/insn.bytemap", trace_dir);
 	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);
 
-	snprintf(name, 256, "%s/process_tree.txt", dir_path);
+	snprintf(name, 256, "%s/process_tree.txt", trace_dir);
 	FILE * fp;
 	fp = fopen(name, "w");
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), root_pid);
@@ -436,11 +440,11 @@ static void event_thread_init(void *drcontext)
 static void fork_init(void *drcontext)
 {	
 	char name[256];
-	snprintf(name, 256, "%s-%d/process_tree.txt", dr_get_application_name(), root_pid);
+	snprintf(name, 256, "%s/process_tree.txt", trace_dir);
 	FILE * fp;
 	dr_mutex_lock(mutex);
 	fp = fopen(name, "a");
-	if (fp == NULL) PEEKABOO_DIE("Peekaboo: Cannot append to process tree!");
+	if (fp == NULL) PEEKABOO_DIE("Peekaboo: Cannot append to process tree at %s!", name);
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), dr_get_process_id());
 	fclose(fp);
 	dr_mutex_unlock(mutex);
