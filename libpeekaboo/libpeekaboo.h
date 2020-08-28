@@ -24,7 +24,7 @@
 #define MAX_PATH (256)
 #define LIBPEEKABOO_VER 2
 
-#define PEEKABOO_DIE(...) {printf(__VA_ARGS__); exit(1);}
+#define PEEKABOO_DIE(...) {fprintf(stderr, __VA_ARGS__); exit(1);}
 
 // Bunch of type definitions for register sizes
 typedef union {

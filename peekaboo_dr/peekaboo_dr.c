@@ -413,12 +413,7 @@ static void event_thread_init(void *drcontext)
 
 	char dir_path[256], name[256];
 	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
-	if (create_folder(name, dir_path, 256))
-	{
-		fprintf(stderr, "Peekaboo: Unable to create directory %s.\n", name);
-		exit(1);
-	}
-
+	if (create_folder(name, dir_path, 256))	PEEKABOO_DIE("Peekaboo: Unable to create directory %s.\n", name);
 
 	dr_mutex_lock(mutex);
 	create_trace_file(dir_path, "insn.bytemap", 256, &bytes_map_file);
@@ -433,7 +428,6 @@ static void event_thread_init(void *drcontext)
 	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);
 	dr_mutex_unlock(mutex);
 
-
 	printf("Peekaboo: Main thread starts. ");
 	init_thread_in_process(drcontext);
 }
@@ -446,11 +440,7 @@ static void fork_init(void *drcontext)
 	FILE * fp;
 	dr_mutex_lock(mutex);
 	fp = fopen(name, "a");
-	if (fp == NULL)
-	{
-		fprintf(stderr, "Peekaboo: Cannot append to process tree!");
-		exit(1);
-	}
+	if (fp == NULL) PEEKABOO_DIE("Peekaboo: Cannot append to process tree!");
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), dr_get_process_id());
 	fclose(fp);
 	dr_mutex_unlock(mutex);
