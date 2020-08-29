@@ -449,6 +449,18 @@ static void fork_init(void *drcontext)
 	fclose(fp);
 	dr_mutex_unlock(mutex);
 
+	// Recreate buffers to make them clean
+	/*
+	drx_buf_free(regfile_buf);
+	drx_buf_free(memrefs_buf);
+	drx_buf_free(memfile_buf);
+	drx_buf_free(insn_ref_buf);
+	insn_ref_buf = drx_buf_create_trace_buffer(INSN_REF_SIZE, flush_insnrefs);
+	memfile_buf = drx_buf_create_trace_buffer(MEMFILE_SIZE, flush_memfile);
+	memrefs_buf = drx_buf_create_trace_buffer(MEM_REFS_SIZE, flush_memrefs);
+	regfile_buf = drx_buf_create_trace_buffer(REG_BUF_SIZE, flush_regfile);
+	*/
+
 	printf("Peekaboo: Application process forks. ");
 	init_thread_in_process(drcontext);
 }

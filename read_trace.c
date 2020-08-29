@@ -27,21 +27,44 @@ int main(int argc, char *argv[])
 
     const size_t num_insn = get_num_insn(&mytrace);
     printf("Total instructions: %ld\n", num_insn);
-    for (int x=1; x<=num_insn; x++)
+    for (size_t insn_idx=1; insn_idx<=num_insn; insn_idx++)
     {
-        peekaboo_insn_t *insn = get_peekaboo_insn(x, &mytrace);
-        printf("%d: 0x%"PRIx64"", x, insn->addr);
-        printf("\t size: %ld", insn->size);
-        printf("\t rawbytes: ");
-        for (int y = 0; y < insn->size; y++)
+        // Get instruction ptr by instruction index
+        peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, &mytrace);
+
+        // Print instruction ea
+        printf("%lu: 0x%"PRIx64"", insn_idx, insn->addr);
+        
+        // Print length of instruction (in bytes)
+        printf("\tsize: %ld", insn->size);
+
+        // Print Rawbytes
+        printf("\trawbytes: ");
+        for (uint8_t rawbyte_idx = 0; rawbyte_idx < insn->size; rawbyte_idx++)
         {
-            if (insn->rawbytes[y] < 16)
-                printf("0");
-            printf("%"PRIx8" ", insn->rawbytes[y]);
+            if (insn->rawbytes[rawbyte_idx] < 16) printf("0");
+            printf("%"PRIx8" ", insn->rawbytes[rawbyte_idx]);
         }
         printf("\n");
+
+        // Print memory access
+        /* 
+        if (insn->num_mem > 0)
+        {
+            printf("Memory:");
+            for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
+            {
+                printf("\t0x%lx: 0x%lx: %d: %d", insn->mem[mem_idx].addr, insn->mem[mem_idx].value, insn->mem[mem_idx].size, insn->mem[mem_idx].status);
+            }
+            printf("\n");
+        }
+        */
+
+        // Print GPRs
         regfile_pp(insn);
         printf("\n");
+
+        // Free instruction ptr
         free_peekaboo_insn(insn);
     }
 

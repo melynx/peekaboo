@@ -81,14 +81,14 @@ void close_trace(peekaboo_trace_t *trace_ptr)
 	fflush(trace_ptr->regfile);
 	fflush(trace_ptr->memfile);
 	fflush(trace_ptr->memrefs);
-	fflush(trace_ptr->metafile);
+	//fflush(trace_ptr->metafile);
 
 	fclose(trace_ptr->insn_trace);
 	fclose(trace_ptr->bytes_map);
 	fclose(trace_ptr->regfile);
 	fclose(trace_ptr->memfile);
 	fclose(trace_ptr->memrefs);
-	fclose(trace_ptr->metafile);
+	//fclose(trace_ptr->metafile);
 }
 
 peekaboo_trace_t *create_trace(char *name)
@@ -271,6 +271,8 @@ void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t versio
 	metadata.arch = arch;
 	metadata.version = version;
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
+	fflush(trace_ptr->metafile);
+	fclose(trace_ptr->metafile);
 }
 
 size_t get_ptr_size(peekaboo_trace_t *trace)
@@ -362,6 +364,8 @@ void regfile_pp(peekaboo_insn_t *insn)
 	}
 }
 
+
+// Free peekaboo insn ptr. Must be called after get_peekaboo_insn().
 void free_peekaboo_insn(peekaboo_insn_t *insn_ptr)
 {
 	if (insn_ptr != NULL)
