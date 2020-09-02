@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
         printf("\n");
 
         // Print memory access
-        /* 
+
         if (insn->num_mem > 0)
         {
             printf("Memory:");
@@ -58,11 +58,11 @@ int main(int argc, char *argv[])
             }
             printf("\n");
         }
-        */
+
 
         // Print GPRs
-        regfile_pp(insn);
-        printf("\n");
+//        regfile_pp(insn);
+//        printf("\n");
 
         // Free instruction ptr
         free_peekaboo_insn(insn);
