@@ -96,20 +96,21 @@ peekaboo_trace_t *create_trace(char *name)
 	char dir_path[MAX_PATH];
 	peekaboo_trace_t *trace_ptr;
 
-	if (create_folder(name, dir_path, MAX_PATH))
-	{
-		fprintf(stderr, "libpeekaboo: Unable to create directory %s.\n", name);
-		return NULL;
-	}
+	if (create_folder(name, dir_path, MAX_PATH)) PEEKABOO_DIE("libpeekaboo: Unable to create directory %s.\n", name);
 
 	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 
 	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace_ptr->insn_trace);
-	//create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace_ptr->bytes_map);
 	create_trace_file(dir_path, "regfile", MAX_PATH, &trace_ptr->regfile);
 	create_trace_file(dir_path, "memfile", MAX_PATH, &trace_ptr->memfile);
 	create_trace_file(dir_path, "memrefs", MAX_PATH, &trace_ptr->memrefs);
 	create_trace_file(dir_path, "metafile", MAX_PATH, &trace_ptr->metafile);
+
+	/* Since version 2, insn.bytemap is shared by all threads. So we do not create
+	 * here.
+	 */
+	//create_trace_file(dir_path, "insn.bytemap", MAX_PATH, &trace_ptr->bytes_map);
+
 
 	return trace_ptr;
 }
@@ -148,19 +149,104 @@ bytes_map_t *find_bytes_map(uint64_t pc, peekaboo_trace_t *trace)
 	return NULL;
 }
 
+size_t get_num_insn(peekaboo_trace_t *trace)
+{
+	return trace->internal->num_insns;
+}
+
+size_t get_ptr_size(peekaboo_trace_t *trace)
+{
+	return trace->internal->ptr_size;
+}
+
+size_t get_regfile_size(peekaboo_trace_t *trace)
+{
+	return trace->internal->regfile_size;
+}
+
+uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
+{
+	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
+
+	uint64_t addr = 0;
+	size_t ptr_size = get_ptr_size(trace);
+
+	fseek(trace->insn_trace, (id-1) * ptr_size, SEEK_SET);
+	size_t fread_bytes = fread(&addr, ptr_size, 1, trace->insn_trace);
+	return addr;
+}
+
+size_t get_num_mem(size_t id, peekaboo_trace_t *trace)
+{
+	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
+
+	size_t num_mem = 0;
+	fseek(trace->memrefs, (id-1) * sizeof(memref_t), SEEK_SET);
+	size_t fread_bytes = fread(&num_mem, sizeof(memref_t), 1, trace->memrefs);
+	return num_mem;
+}
+
+
 void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 {
 	char path[MAX_PATH];
 	snprintf(path, MAX_PATH, "%s/%s", dir_path, "memrefs_offsets");
+
 	if (access(path, F_OK) == -1)
 	{
+		uint64_t base_offset = 0;
+
+		/* KH: This is a ad-hoc patch to fix the bug in peekaboo_dr.
+		 * When the application process forks, there is some residue
+		 * in memfile buffer that can't be cleaned up.
+		 * Thus, When read those traces, we need to find the real starting
+		 * point of the memfile. We use base_offset to store it.
+		 */
+		if (trace->internal->version >= 3)
+		{
+			// Find the first instruction that has memory access
+			uint64_t first_pc = 0x0;
+			size_t trace_len = trace->internal->num_insns;
+			size_t id=1;
+			for(; id<=trace_len; id++)
+			{
+				size_t num_mem = get_num_mem(id, trace);
+				if (num_mem == 0) continue;
+				first_pc = get_addr(id, trace);
+				break;
+			}
+			if (id > trace_len)
+			{
+				// A weird trace. It doesn't have any memory access. 
+				// Do nothing but gives a warning.
+				fprintf(stderr, "libpeekaboo: [Warning] No memory ops found in this trace.\n");
+			}
+			else
+			{
+				if (first_pc==0) PEEKABOO_DIE("libpeekaboo: zero pc for id %lu", id);
+				fseek(trace->memfile, 0, SEEK_END);
+				memfile_t mem;
+				mem.pc = 0;
+				errno = 0;
+				fseek(trace->memfile, base_offset, SEEK_SET);
+				size_t read_size = fread(&mem, sizeof(memfile_t), 1, trace->memfile);
+				while(mem.pc!=first_pc && errno==0)
+				{
+					base_offset += sizeof(memfile_t);
+					fseek(trace->memfile, base_offset, SEEK_SET);
+					read_size = fread(&mem, sizeof(memfile_t), 1, trace->memfile);
+				}
+			}
+		}
+		if (base_offset!=0) fprintf(stderr, "libpeekaboo: (Trace from a child thread/process?) Re-align the memory offset, starting from %ld.\n", base_offset/sizeof(memfile_t));
+
 		FILE *memrefs_offsets = fopen(path, "wb");
 
 		memref_t buffer[1024];
 		size_t write_buffer[1024];
 
 		size_t read_size = 0;
-		size_t offset = 0;
+		size_t offset = base_offset;
 
 		rewind(trace->memrefs);
 		do {
@@ -187,11 +273,6 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 
 }
 
-size_t get_num_insn(peekaboo_trace_t *trace)
-{
-	return trace->internal->num_insns;
-}
-
 void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 {
 	char path[MAX_PATH];
@@ -211,7 +292,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 	size_t fread_bytes = fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	trace_ptr->internal->arch = meta.arch;
 	trace_ptr->internal->version = meta.version;
-	printf("libpeekaboo: Trace version: %d\n", meta.version);
+	fprintf(stderr, "libpeekaboo: Trace version: %d\n", meta.version);
 
 	switch (meta.arch)
 	{
@@ -284,37 +365,6 @@ void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t versio
 	fclose(trace_ptr->metafile);
 }
 
-size_t get_ptr_size(peekaboo_trace_t *trace)
-{
-	return trace->internal->ptr_size;
-}
-
-size_t get_regfile_size(peekaboo_trace_t *trace)
-{
-	return trace->internal->regfile_size;
-}
-
-uint64_t get_addr(size_t id, peekaboo_trace_t *trace)
-{
-	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
-
-	uint64_t addr = 0;
-	size_t ptr_size = get_ptr_size(trace);
-
-	fseek(trace->insn_trace, (id-1) * ptr_size, SEEK_SET);
-	size_t fread_bytes = fread(&addr, ptr_size, 1, trace->insn_trace);
-	return addr;
-}
-
-size_t get_num_mem(size_t id, peekaboo_trace_t *trace)
-{
-	if (!id) PEEKABOO_DIE("libpeekaboo: Error. Instruction index 0 is not accepted.\n");
-
-	size_t num_mem = 0;
-	fseek(trace->memrefs, (id-1) * sizeof(memref_t), SEEK_SET);
-	size_t fread_bytes = fread(&num_mem, sizeof(memref_t), 1, trace->memrefs);
-	return num_mem;
-}
 
 // It is caller's duty to free peekaboo insn ptr. Call free_peekaboo_insn() to do so.
 peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace)
