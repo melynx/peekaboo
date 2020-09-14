@@ -265,7 +265,7 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 				}
 			}
 			fwrite(write_buffer, sizeof(size_t), read_size, memrefs_offsets);
-		} while (feof(trace->memrefs));
+		} while (read_size == 1024);
 		rewind(trace->memrefs);
 		fclose(memrefs_offsets);
 	}
@@ -391,7 +391,7 @@ peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace)
 	int fseek_return = fseek(trace->memrefs_offsets, (id-1) * sizeof(size_t), SEEK_SET);
 	size_t memfile_offset;
 	size_t fread_bytes = fread(&memfile_offset, sizeof(size_t), 1, trace->memrefs_offsets);
-	//printf("memrefs_offsets %lx\tfread return value %ld\terrorno %d\n", memfile_offset, fread_bytes, errno);
+	errno = 0;
 	if (memfile_offset != (size_t) -1)
 	{
 		fseek(trace->memfile, memfile_offset, SEEK_SET);
