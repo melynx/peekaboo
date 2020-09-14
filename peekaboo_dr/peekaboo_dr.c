@@ -253,9 +253,13 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 
 	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(memfile_t, addr)); 
-	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(0), OPSZ_4, offsetof(memfile_t, value));
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(0), OPSZ_8, offsetof(memfile_t, value));
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(memfile_t, size));
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(memfile_t, status));
+	
+	app_pc pc = instr_get_app_pc(where);
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, offsetof(memfile_t, pc));
+	
 	drx_buf_insert_update_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, sizeof(memfile_t));
 
 	//printf("sizesize:%d\n", size);
@@ -301,12 +305,12 @@ static void instrument_insn(void *drcontext, instrlist_t *ilist, instr_t *where,
 	dr_insert_clean_call(drcontext, ilist, where, (void *)save_regfile, false, 0);
 	drx_buf_insert_load_buf_ptr(drcontext, regfile_buf, ilist, where, reg_ptr);
 
-	// KH: We save app pc into reg_rip, though it is not the actually rip.  
+	// KH: We save app_pc+instr_len into reg_rip, though it is not the actually rip.  
 	#ifdef X86
 		#ifdef X64
-			drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc), OPSZ_8, offsetof(regfile_amd64_t, gpr) + offsetof(amd64_cpu_gr_t, reg_rip));
+			drx_buf_insert_buf_store(drcontext, regfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(pc + insn_len), OPSZ_8, offsetof(regfile_amd64_t, gpr) + offsetof(amd64_cpu_gr_t, reg_rip));
 		#else
-		// We currently don't have eip reg
+		// We currently don't have eip reg for 32bit X86
 		#endif
 	#endif
 	

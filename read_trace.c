@@ -51,18 +51,17 @@ int main(int argc, char *argv[])
 
         if (insn->num_mem > 0)
         {
-            printf("Memory:");
+            printf("\tMemory:");
             for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
             {
-                printf("\t0x%lx: 0x%lx: %d: %d", insn->mem[mem_idx].addr, insn->mem[mem_idx].value, insn->mem[mem_idx].size, insn->mem[mem_idx].status);
+                printf("\t0x%lx; Size: %d; Status: %d; PC: %lx\n", insn->mem[mem_idx].addr, insn->mem[mem_idx].size, insn->mem[mem_idx].status, insn->mem[mem_idx].pc);
             }
-            printf("\n");
         }
 
 
         // Print GPRs
-//        regfile_pp(insn);
-//        printf("\n");
+        regfile_pp(insn);
+        printf("\n");
 
         // Free instruction ptr
         free_peekaboo_insn(insn);

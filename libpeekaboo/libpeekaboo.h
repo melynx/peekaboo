@@ -84,6 +84,7 @@ typedef struct {
 	uint64_t value;		/* memory value */
 	uint32_t size;		/* how many bits are vaild in value */
 	uint32_t status; 	/* 0 for Read, 1 for write */
+	uint64_t pc;		/* Ad-hoc fix for alignment to support legacy version traces.*/
 } memfile_t;
 //---------------------------------------------------------
 
@@ -117,6 +118,7 @@ typedef struct {
 	void *regfile_buf;
 	memfile_t *memfile_buf;
 	memref_t *memref_buf;
+	uint32_t version;
 } peekaboo_internal_t;
 
 typedef struct {
@@ -140,7 +142,7 @@ size_t num_regfile(peekaboo_trace_t *);
 
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
 size_t get_num_insn(peekaboo_trace_t *);
-peekaboo_insn_t *get_peekaboo_insn(size_t id, peekaboo_trace_t *trace);
+peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace);
 void free_peekaboo_insn(peekaboo_insn_t *insn_ptr);
 void regfile_pp(peekaboo_insn_t *insn);
 
