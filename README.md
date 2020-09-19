@@ -41,8 +41,36 @@ DynamoRIO_DIR=($DynamoRIO_PATH) cmake ..
 make
 ```
 Then you will have a file named 'libpeekaboo_dr.so' under the build folder.
-### How to run
+### How to start tracing
 Say, you want to run with command ls in 64-bit mode:
 ```
 ($DynamoRIO_PATH)/bin64/drrun -c ($Peekaboo_PATH)/peekaboo_dr/build/libpeekaboo_dr.so -- ls
+```
+Then you should get a folder in the current directory (e.g. ./ls-31401)
+### How to read your trace with C/C++
+A example reader `read_trace.c` has been provided. You will need binutils-dev for compile it.
+```
+cd ($Peekaboo_root)
+make
+./read_trace ($trace_folder)/ls-31401/31401
+```
+If the application forked during tracing, there will be other sub folders. For example:
+```
+fork-32105
+|----insn.bytemap
+|----process_tree.txt
+|----32105
+|     |----insn.trace
+|     |----memfile
+|     |----memrefs
+|     |----metafile
+|     |----proc_map
+|     |----regfile
+|----32109
+|     |----insn.trace
+|     |----memfile
+|     |----memrefs
+|     |----metafile
+|     |----proc_map
+|     |----regfile
 ```
