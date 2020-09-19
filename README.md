@@ -48,7 +48,7 @@ Say, you want to run with command ls in 64-bit mode:
 ```
 Then you should get a folder in the current directory (e.g. ./ls-31401)
 ### How to read your trace with C/C++
-A example reader `read_trace.c` has been provided. You will need binutils-dev for compile it.
+A example reader `read_trace.c` has been provided. You will need binutils-dev to compile it.
 ```
 cd ($Peekaboo_root)
 make
@@ -67,11 +67,11 @@ fork-32105
 |     |----proc_map
 |     |----regfile
 |----32109
-|     |----insn.trace
-|     |----memfile
-|     |----memrefs
-|     |----metafile
-|     |----proc_map
-|     |----regfile
+      |----insn.trace
+      |----memfile
+      |----memrefs
+      |----metafile
+      |----proc_map
+      |----regfile
 ```
 You may use `./read_trace ($trace_folder)/fork-32105/32105` to read the trace of the parent thread and use `./read_trace ($trace_folder)/fork-32105/32109` for the child thread.
