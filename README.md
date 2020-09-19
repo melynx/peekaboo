@@ -14,6 +14,13 @@ AMD64, AARCH64, X86
 ### Planned Support
 AARCH32
 
+## Dependency
+read_trace: binutils-dev
+```
+sudo apt install binutils-dev
+```
+peekaboo_dr: [DynamoRIO](https://github.com/DynamoRIO/dynamorio)
+
 ## libpeekaboo API
 Build a static library:
 ```
