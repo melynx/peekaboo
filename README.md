@@ -54,7 +54,7 @@ cd ($Peekaboo_root)
 make
 ./read_trace ($trace_folder)/ls-31401/31401
 ```
-If the application forked during tracing, there will be other sub folders. For example:
+If the application forked during tracing, there will be other sub folders. The structure will be like this:
 ```
 fork-32105
 |----insn.bytemap
@@ -74,3 +74,4 @@ fork-32105
 |     |----proc_map
 |     |----regfile
 ```
+You may use `./read_trace ($trace_folder)/fork-32105/32105` to read the trace of the parent thread and use `./read_trace ($trace_folder)/fork-32105/32109` for the child thread.
