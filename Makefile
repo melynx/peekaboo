@@ -30,12 +30,12 @@ else
 	$(info )
 endif # HAVE_GAS
 
-all: $(PROG) 
+all: $(PROG)
 
 debug: CFLAGS += -DDEBUG -g
 debug: $(PROG)
 
-read_trace: read_trace.o $(STATIC_LIB_TARGET) | binutils_warning
+read_trace: binutils_warning | read_trace.o $(STATIC_LIB_TARGET) 
 	$(CC) read_trace.o $(STATIC_LIB_TARGET) -o read_trace $(CFLAGS) $(LIBS)
 
 $(STATIC_LIB_TARGET):
@@ -50,7 +50,9 @@ clean:
 binutils_warning:
 ifeq ($(HAVE_GAS),0)
 	$(info WARNING: Binutils-dev not found. Disassembling in the trace reader is disabled.)
+	$(info )
 endif
 ifeq ($(HAVE_GAS)$(GAS229_OR_LATER),10)
-		$(info WARNING: Binutils-dev>=2.29 required. Disassembling in the trace reader is disabled.)
+	$(info WARNING: Binutils-dev>=2.29 required. Disassembling in the trace reader is disabled.)
+	$(info )
 endif
