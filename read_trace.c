@@ -92,7 +92,7 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
 #endif
 
 
-inline bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
+bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
 {
     /*
     if (insn_idx == num_insn)

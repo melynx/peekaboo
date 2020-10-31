@@ -1,32 +1,32 @@
-TARGET = libpeekaboo.a
-CC = gcc
-OPT = -O2
+OBJLIB = libpeekaboo.a
+OPT = -O3
 WARNINGS =
 ARCH_DIR = ./arch
 IDIR = .
 LDIR = .
 CFLAGS  = $(WARNINGS) $(OPT) -I$(IDIR) -L$(LDIR)
 
-all: $(TARGET)
+RM ?= rm -f
 
-libpeekaboo.a: libpeekaboo.o aarch64.o amd64.o x86.o
-	ar rcs $(TARGET) libpeekaboo.o aarch64.o amd64.o x86.o
+ARCH_SRC = $(wildcard $(ARCH_DIR)/*.c)
+ARCH_OBJ = $(patsubst %.c,%.o,$(ARCH_SRC))
+OBJ = $(patsubst %.c,%.o,$(wildcard *.c))
+
+all: $(OBJLIB)
+
+debug: CFLAGS += -DDEBUG -g 
+debug: all
+
+$(OBJLIB): $(OBJ) $(ARCH_OBJ)
+	ar rcs $(OBJLIB) $^
 	ranlib libpeekaboo.a
 
-libpeekaboo.o: libpeekaboo.c libpeekaboo.h
-	$(CC) -c libpeekaboo.c libpeekaboo.h $(CFLAGS)
+%.o: %.c
+	$(CC) $(strip $(CFLAGS) -c) $<
 
-aarch64.o: $(ARCH_DIR)/aarch64.c $(ARCH_DIR)/aarch64.h
-	$(CC) -c $(ARCH_DIR)/aarch64.c $(ARCH_DIR)/aarch64.h $(CFLAGS)
-
-amd64.o: $(ARCH_DIR)/amd64.c $(ARCH_DIR)/amd64.h
-	$(CC) -c $(ARCH_DIR)/amd64.c $(ARCH_DIR)/amd64.h $(CFLAGS)
-
-x86.o: $(ARCH_DIR)/x86.c $(ARCH_DIR)/x86.h
-	$(CC) -c $(ARCH_DIR)/x86.c $(ARCH_DIR)/x86.h $(CFLAGS)
+$(ARCH_DIR)/%.o : $(ARCH_DIR)/%.c
+	$(CC) $(strip $(CFLAGS) -c) -o $(patsubst %.c,%.o,$@) $<
 
 .PHONY: clean
-
 clean:
-	rm -f *.o *.a *.gch $(ARCH_DIR)/*.o $(ARCH_DIR)/*.gch
-
+	$(RM) *.o *.a *.gch $(ARCH_DIR)/*.o $(ARCH_DIR)/*.gch
