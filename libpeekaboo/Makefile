@@ -5,8 +5,11 @@ ARCH_DIR = ./arch
 IDIR = .
 LDIR = .
 CFLAGS  = $(WARNINGS) $(OPT) -I$(IDIR) -L$(LDIR)
+ARFLAGS = rcs
 
+AR ?= ar
 RM ?= rm -f
+RANLIB ?= ranlib
 
 ARCH_SRC = $(wildcard $(ARCH_DIR)/*.c)
 ARCH_OBJ = $(patsubst %.c,%.o,$(ARCH_SRC))
@@ -18,8 +21,8 @@ debug: CFLAGS += -DDEBUG -g
 debug: all
 
 $(OBJLIB): $(OBJ) $(ARCH_OBJ)
-	ar rcs $(OBJLIB) $^
-	ranlib libpeekaboo.a
+	$(AR) $(ARFLAGS) $@ $^
+	$(RANLIB) $@
 
 %.o: %.c
 	$(CC) $(strip $(CFLAGS) -c) $<
