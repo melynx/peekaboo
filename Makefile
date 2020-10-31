@@ -1,7 +1,9 @@
-PROG = read_trace
-PROJ_HOME = .
-IDIR_PEEKABOO = $(PROJ_HOME)/libpeekaboo
-LDIR_PEEKABOO = $(PROJ_HOME)/libpeekaboo
+PROG := read_trace
+PROJ_HOME := .
+IDIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
+LDIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
+STATIC_LIB_TARGET := $(addprefix $(LDIR_PEEKABOO)/,libpeekaboo.a)
+
 LIBS = -lpeekaboo -lm 
 CC = gcc
 OPT = -O2
@@ -22,27 +24,33 @@ ifneq ($(HAVE_GAS),0)
 	ifneq ($(GAS229_OR_LATER),0)
 		CFLAGS += -DASM
 		LIBS += -lopcodes
-	else
-		$(info WARNING: Binutils library is too old. Disassembling in the trace reader is disabled.)
-		$(info )
 	endif # -DASM
 else
 	$(info WARNING: Binutils-dev not found. Disassembling in the trace reader is disabled.)
 	$(info )
 endif # HAVE_GAS
 
-all: $(PROG)
+all: $(PROG) 
 
 debug: CFLAGS += -DDEBUG -g
 debug: $(PROG)
 
-read_trace: read_trace.o $(LDIR_PEEKABOO)/libpeekaboo.a
-	$(CC) read_trace.o $(LDIR_PEEKABOO)/libpeekaboo.a -o read_trace $(CFLAGS) $(LIBS)
+read_trace: read_trace.o $(STATIC_LIB_TARGET) | binutils_warning
+	$(CC) read_trace.o $(STATIC_LIB_TARGET) -o read_trace $(CFLAGS) $(LIBS)
 
-$(LDIR_PEEKABOO)/libpeekaboo.a:
+$(STATIC_LIB_TARGET):
 	(cd $(LDIR_PEEKABOO) && $(MAKE))
 
 .PHONY: clean
 clean:
 	rm -f *.o *.a *.gch $(PROG)
 	(cd $(LDIR_PEEKABOO) && $(MAKE) clean)
+
+.PHONY: binutils_warning
+binutils_warning:
+ifeq ($(HAVE_GAS),0)
+	$(info WARNING: Binutils-dev not found. Disassembling in the trace reader is disabled.)
+endif
+ifeq ($(HAVE_GAS)$(GAS229_OR_LATER),10)
+		$(info WARNING: Binutils-dev>=2.29 required. Disassembling in the trace reader is disabled.)
+endif
