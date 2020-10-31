@@ -1,12 +1,12 @@
 # Command ard arguments
 RM ?= rm -f
 GREP ?= grep
+LDCONF ?= /sbin/ldconfig
 
 PROG := read_trace
 
 PROJ_HOME := .
 DIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
-LDIR := $(DIR_PEEKABOO)
 
 LDLIB_PEEKABOO := -lpeekaboo
 LDLIBS = -lm $(LDLIB_PEEKABOO) 
@@ -30,7 +30,13 @@ debug: CFLAGS += -DDEBUG -g
 debug: all
 
 read_trace: read_trace.o $(LDLIBS) 
-	$(CC) -o $@ $(strip $(CFLAGS) -L$(LDIR) $^)
+ifeq ($(shell $(LDCONF) -p | $(GREP) -c "peekaboo"),0)
+	@# Cannot find peekaboo installed. Static link!
+	$(CC) -o $@ $(strip $(CFLAGS) -L$(DIR_PEEKABOO) $^)
+else
+	@# Dynamic link if libpeekaboo has been installed
+	$(CC) -o $@ $(strip $(CFLAGS) $^)
+endif
 
 %.o: %.c
 	$(CC) $(strip $(CFLAGS) -c) $<
