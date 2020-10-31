@@ -15,7 +15,7 @@ AMD64, AARCH64, X86
 AARCH32
 
 ## Dependency
-read_trace: binutils-dev
+read_trace: binutils-dev>=2.29
 ```
 sudo apt install binutils-dev
 ```

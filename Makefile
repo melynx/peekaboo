@@ -13,6 +13,23 @@ all: $(PROG)
 debug: CFLAGS += -DDEBUG -g
 debug: $(PROG)
 
+# Solaris provides a non-Posix shell at /usr/bin
+ifneq ($(wildcard /usr/xpg4/bin),)
+  GREP ?= /usr/xpg4/bin/grep
+else
+  GREP ?= grep
+endif
+
+# We only support binutils 2.29 or later for disasm.
+HAVE_GAS := $(shell $(CXX) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c "GNU assembler")
+ifneq ($(HAVE_GAS),0)
+	GAS229_OR_LATER := $(shell $(CXX) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c -E "GNU assembler version (2\.29|2\.[3-9]|[3-9])")
+	ifneq ($(GAS229_OR_LATER),0)
+		CFLAGS += -DASM
+	endif # -DASM
+endif # HAVE_GAS
+
+
 read_trace: read_trace.o $(LDIR_PEEKABOO)/libpeekaboo.a
 	$(CC) read_trace.o $(LDIR_PEEKABOO)/libpeekaboo.a -o read_trace $(CFLAGS) $(LIBS)
 

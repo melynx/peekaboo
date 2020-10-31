@@ -21,7 +21,11 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
-#include <dis-asm.h>
+
+#ifdef ASM
+    // binutils-dev >= 2.29 required
+    #include <dis-asm.h>
+#endif
 
 #include "libpeekaboo.h"
 
@@ -39,6 +43,7 @@ static void display_usage(char *program_name)
     exit(0);
 }
 
+#ifdef ASM
 /* Disassemble and print instruction */
 int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_buffer, const size_t input_buffer_size) 
 {
@@ -84,6 +89,8 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
 
     return 0;
 }
+#endif
+
 
 inline bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
 {
@@ -107,7 +114,7 @@ inline bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t nu
 
 int main(int argc, char *argv[])
 {
-    // Arguement check
+    // Argument check
     if (argc!=2) display_usage(argv[0]);
 
     // Print current libpeekaboo version
@@ -157,6 +164,7 @@ int main(int argc, char *argv[])
         // Print disassemble for instructions using libopcodes
         if (print_disasm) 
         {
+            #ifdef ASM
             // Pretty print 
             for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
             printf("\t");
@@ -164,6 +172,7 @@ int main(int argc, char *argv[])
             // Disasmble the instruction
             int rvalue = disassemble_raw((enum ARCH)mytrace.internal->arch, false, insn->rawbytes, insn->size);
             if(rvalue != 0) exit(1);
+            #endif
         }
         printf("\n");
 
