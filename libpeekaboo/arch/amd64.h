@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 
-#include "libpeekaboo.h"
+#include "../libpeekaboo.h"
 
 #define AMD64_NUM_SIMD_SLOTS 16
 

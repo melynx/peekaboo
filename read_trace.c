@@ -27,7 +27,7 @@
     #include <dis-asm.h>
 #endif
 
-#include "libpeekaboo.h"
+#include "libpeekaboo/libpeekaboo.h"
 
 // What you want to include in ouput?
 // Users can edit print_filter() to modify these booleans during runtime.

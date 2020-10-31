@@ -22,10 +22,11 @@ sudo apt install binutils-dev
 peekaboo_dr: [DynamoRIO](https://github.com/DynamoRIO/dynamorio)
 
 ## libpeekaboo API
-Build a static library:
+Install libpeekaboo:
 ```
 cd libpeekaboo
 make
+sudo make install
 ```
 APIs:
 TODO

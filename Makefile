@@ -1,23 +1,18 @@
+# Command ard arguments
+RM ?= rm -f
+GREP ?= grep
+
 PROG := read_trace
 
 PROJ_HOME := .
-IDIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
-LDIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
-LIBOBJ := $(addprefix $(LDIR_PEEKABOO)/,libpeekaboo.a)
+DIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
+LDIR := $(DIR_PEEKABOO)
 
-RM ?= rm -f
-
-LDLIBS = -lpeekaboo -lm 
+LDLIB_PEEKABOO := -lpeekaboo
+LDLIBS = -lm $(LDLIB_PEEKABOO) 
 OPT = -O3
 WARNINGS = #-Wall -Wextra
-CFLAGS = $(OPT) $(WARNINGS) -I$(IDIR_PEEKABOO) -L$(LDIR_PEEKABOO)
-
-# Solaris provides a non-Posix shell at /usr/bin
-ifneq ($(wildcard /usr/xpg4/bin),)
-  GREP ?= /usr/xpg4/bin/grep
-else
-  GREP ?= grep
-endif
+CFLAGS = $(OPT) $(WARNINGS)
 
 # We only support binutils 2.29 or later for disasm with libopcodes.
 HAVE_GAS := $(shell $(CC) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c "GNU assembler")
@@ -32,22 +27,21 @@ endif # HAVE_GAS
 all: $(PROG) | binutils_warning 
 
 debug: CFLAGS += -DDEBUG -g 
-debug: is_debug = debug
 debug: all
 
-read_trace: read_trace.o $(LIBOBJ) 
-	$(CC) -o $@ $(strip $(CFLAGS) $^ $(LDLIBS))
+read_trace: read_trace.o $(LDLIBS) 
+	$(CC) -o $@ $(strip $(CFLAGS) -L$(LDIR) $^)
 
 %.o: %.c
 	$(CC) $(strip $(CFLAGS) -c) $<
 
-$(LIBOBJ):
-	(cd $(LDIR_PEEKABOO) && $(strip $(MAKE) $(findstring debug,$(is_debug))))
+$(LDLIB_PEEKABOO): 
+	(cd $(DIR_PEEKABOO) && $(strip $(MAKE) $(patsubst DEBUG,debug,$(findstring DEBUG,$(CFLAGS)))))
 
 .PHONY: clean
 clean:
 	$(RM) *.o *.a *.gch $(PROG)
-	(cd $(LDIR_PEEKABOO) && $(MAKE) clean)
+	(cd $(DIR_PEEKABOO) && $(MAKE) clean)
 
 .PHONY: binutils_warning
 binutils_warning:

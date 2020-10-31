@@ -22,7 +22,7 @@
 #include <dirent.h>
 
 #define MAX_PATH (256)
-#define LIBPEEKABOO_VER 3
+#define LIBPEEKABOO_VER 003
 
 #define PEEKABOO_DIE(...) {fprintf(stderr, __VA_ARGS__); exit(1);}
 
