@@ -10,11 +10,14 @@ IS_DARWIN := $(shell echo "$(MACHINE)" | $(GREP) -i -c "Darwin")
 IS_LINUX := $(shell echo "$(MACHINE)" | $(GREP) -i -c "Linux")
 
 # General variables
-OPT = -O3
+OPT ?= -O3
 WARNINGS = #-Wall -Wextra
-LDLIB_PEEKABOO := -lpeekaboo
-LDLIBS = -lm $(LDLIB_PEEKABOO) 
-CFLAGS = $(OPT) $(WARNINGS)
+LDLIB_PEEKABOO ?= -lpeekaboo
+LDLIBS := $(LDLIB_PEEKABOO) 
+ifneq ($(IS_DARWIN), 1)
+	LDLIBS += -lm # MacOS doesn't need link math library
+endif
+CFLAGS ?= $(OPT) $(WARNINGS)
 
 # Path
 PROJ_HOME := .
