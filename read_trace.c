@@ -27,7 +27,21 @@
     #include <dis-asm.h>
 #endif
 
+// Print how many instructions if block matches
+#define PRINT_NEXT 100
+
 #include "libpeekaboo/libpeekaboo.h"
+
+// The instruction raw bytes you are looking for
+unsigned char target_block[] = {
+    /*
+    "\x48\x89\xe7"
+    "\xe8\x78\x0d\x00\x00"
+    "\x55"
+    */
+    "\x48\x8d\x3c\x97"
+};
+
 
 // What you want to include in ouput?
 // Users can edit print_filter() to modify these booleans during runtime.
@@ -35,8 +49,34 @@ bool print_disasm   = true;
 bool print_memory   = false;
 bool print_register = false;
 
+// Structure
+struct circular_buffer_t {
+    char* buffer;
+    size_t head;
+    size_t size;
+};
+uint32_t print_next = 0;
+
+
 bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
 {
+    /* Return true to print this instruction. Otherwise, skip this instruction printing. */
+    bool rvalue;
+
+    // KH: If no target block, then by default print everything
+    if (sizeof(target_block) == 0)
+        rvalue = true;
+    else
+        rvalue = false;
+
+    // If print_next, then overide return value
+    if (print_next)
+    {
+        print_next--;
+        rvalue = true;
+    }
+
+    // Detailed settings for what to print
     /*
     if (insn_idx == num_insn)
     {
@@ -50,9 +90,7 @@ bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
     }
     */
 
-    /* Return true to print this instruction. Otherwise, skip this instruction printing. */
-    return true;
-    // return false;
+   return rvalue;
 }
 
 static void display_usage(char *program_name)
@@ -110,6 +148,37 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
 }
 #endif
 
+void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr, char const *cur_insn_rawbytes, const uint32_t cur_insn_size)
+{
+    for (size_t idx = 0; idx < cur_insn_size; idx++)
+    {
+        raw_bytes_buffer_ptr->buffer[raw_bytes_buffer_ptr->head] = cur_insn_rawbytes[idx];
+        raw_bytes_buffer_ptr->head = (raw_bytes_buffer_ptr->head + 1) % raw_bytes_buffer_ptr->size;
+    }
+}
+
+bool is_buffer_matched(struct circular_buffer_t const* raw_bytes_buffer_ptr, char *target_buffer, const uint32_t target_buffer_size)
+{
+    size_t cur_head = raw_bytes_buffer_ptr->head;
+    bool matched = true;
+
+    for (int64_t idx = target_buffer_size - 1; idx >= 0; idx--)
+    {
+        if (cur_head == 0)
+            cur_head = raw_bytes_buffer_ptr->size - 1; 
+        else
+            cur_head--;
+        uint8_t byte_in_buffer = raw_bytes_buffer_ptr->buffer[cur_head] & 0xff;
+        uint8_t byte_in_target = target_buffer[idx] & 0xff;
+        if (byte_in_buffer != byte_in_target)
+        {
+            matched = false;
+            break;
+        }
+    }
+    return matched;
+}
+
 int main(int argc, char *argv[])
 {
     // Argument check
@@ -129,6 +198,19 @@ int main(int argc, char *argv[])
 
     uint8_t digits = (uint8_t) log10(num_insn);
 
+    // Maintain a buffer to store rawbytes
+    size_t block_size;
+    if (sizeof(target_block))
+        block_size = sizeof(target_block) - 1;
+    else
+        block_size = 0;
+    struct circular_buffer_t raw_bytes_buffer;
+    raw_bytes_buffer.buffer = malloc(block_size);
+    if (raw_bytes_buffer.buffer == NULL) PEEKABOO_DIE("Fail to malloc circular buffer.");
+    raw_bytes_buffer.head = 0;
+    raw_bytes_buffer.size = block_size;
+    uint64_t num_found_block = 0;
+
     // We print all instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
     for (size_t insn_idx=1; insn_idx<=num_insn; insn_idx++)
@@ -136,6 +218,18 @@ int main(int argc, char *argv[])
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, &mytrace);
         
+        // Update buffer and check buffer
+        if (block_size)
+        {
+            update_raw_byte_buffer(&raw_bytes_buffer, insn->rawbytes, insn->size);
+            if (is_buffer_matched(&raw_bytes_buffer, target_block, block_size))
+            {
+                num_found_block ++;
+                print_next = PRINT_NEXT;
+                printf("\n[Target block %lu] ends at 0x%"PRIx64". Print next %d instructions:\n", num_found_block, insn->addr, print_next);
+            }
+        }
+
         // Call print_filter() to decide what should be printed
         if (!print_filter(insn, insn_idx, num_insn))
         {
@@ -195,5 +289,6 @@ int main(int argc, char *argv[])
         free_peekaboo_insn(insn);
     }
 
+    free(raw_bytes_buffer.buffer);
     return 0;
 }
