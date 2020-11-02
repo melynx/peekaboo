@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-/* This is a simple trace reader for reading peekaboo traces. */
+/* This is a trace reader for reading peekaboo traces. */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
+
+#include "libpeekaboo/libpeekaboo.h"
 
 #ifdef ASM
     // binutils-dev >= 2.29 required
@@ -30,18 +32,11 @@
 // Print how many instructions if block matches
 #define PRINT_NEXT 100
 
-#include "libpeekaboo/libpeekaboo.h"
-
 // The instruction raw bytes you are looking for
 unsigned char target_block[] = {
-    /*
-    "\x48\x89\xe7"
-    "\xe8\x78\x0d\x00\x00"
-    "\x55"
-    */
-    "\x48\x8d\x3c\x97"
+    "\x48\x89\xe5"
+    "\x41\x57"
 };
-
 
 // What you want to include in ouput?
 // Users can edit print_filter() to modify these booleans during runtime.
@@ -102,7 +97,7 @@ static void display_usage(char *program_name)
 
 #ifdef ASM
 /* Disassemble and print instruction */
-int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_buffer, const size_t input_buffer_size) 
+int disassemble_raw(const enum ARCH arch, const bool is_big_endian, uint8_t *input_buffer, const size_t input_buffer_size) 
 {
     disassemble_info disasm_info = {};
     init_disassemble_info(&disasm_info, stdout, (fprintf_ftype) fprintf);
@@ -128,7 +123,7 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
             perror("Arch not supported!");
             return -1;
     }
-    if (big_endian)
+    if (is_big_endian)
         disasm_info.endian = BFD_ENDIAN_BIG;
     else
         disasm_info.endian = BFD_ENDIAN_LITTLE;
@@ -139,7 +134,7 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
     disassemble_init_for_target(&disasm_info);
 
     disassembler_ftype disasm;
-    disasm = disassembler(disasm_info.arch, big_endian, disasm_info.mach, NULL);
+    disasm = disassembler(disasm_info.arch, is_big_endian, disasm_info.mach, NULL);
 
     for (size_t pc = 0; pc < input_buffer_size;) 
         pc += disasm(pc, &disasm_info);
@@ -148,7 +143,9 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
 }
 #endif
 
-void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr, char const *cur_insn_rawbytes, const uint32_t cur_insn_size)
+void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr, 
+                            char const *cur_insn_rawbytes, 
+                            const uint32_t cur_insn_size)
 {
     for (size_t idx = 0; idx < cur_insn_size; idx++)
     {
@@ -157,7 +154,9 @@ void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr, char
     }
 }
 
-bool is_buffer_matched(struct circular_buffer_t const* raw_bytes_buffer_ptr, char *target_buffer, const uint32_t target_buffer_size)
+bool is_buffer_matched(struct circular_buffer_t const* raw_bytes_buffer_ptr, 
+                       char *target_buffer, 
+                       const uint32_t target_buffer_size)
 {
     size_t cur_head = raw_bytes_buffer_ptr->head;
     bool matched = true;
@@ -179,6 +178,89 @@ bool is_buffer_matched(struct circular_buffer_t const* raw_bytes_buffer_ptr, cha
     return matched;
 }
 
+uint8_t digits;
+void print_peekaboo_insn(peekaboo_insn_t *insn, 
+                         peekaboo_trace_t *peekaboo_trace_ptr, 
+                         const size_t insn_idx,
+                         const bool target)
+{
+    // Print instruction index
+    printf("[%lu] ", insn_idx);
+    if (!print_memory && !print_register)
+        if (target) 
+        {
+            for (uint8_t idx = (uint8_t)log10f(insn_idx); idx < digits - 1; idx++) printf("-");
+            printf(">");
+        }
+        else
+            for (uint8_t idx = (uint8_t)log10f(insn_idx); idx < digits; idx++) printf(" ");
+
+    // Print instruction ea
+    printf("0x%"PRIx64"", insn->addr);
+        
+    // Print Rawbytes
+    printf(":\t ");
+
+    for (uint8_t rawbyte_idx = 0; rawbyte_idx < insn->size; rawbyte_idx++)
+    {
+        if (insn->rawbytes[rawbyte_idx] < 16) printf("0");
+        printf("%"PRIx8" ", insn->rawbytes[rawbyte_idx]);
+    }
+
+    // Print disassemble for instructions using libopcodes
+    if (print_disasm) 
+    {
+        #ifdef ASM
+            // Pretty print 
+            for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
+            printf("\t");
+
+            // Disasmble the instruction
+            int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
+            if(rvalue != 0) exit(1);
+        #endif
+    }
+    printf("\n");
+
+    // Print memory ops
+    if (print_memory && (insn->num_mem > 0))
+    {
+        for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
+        {
+            printf("\t");
+            printf(insn->mem[mem_idx].status ? "Memory Write: " : "Memory Read: ");
+            printf("%d bytes @ 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr);
+
+            // Assert fails at this line? Delete memrefs_offsets in trace folder and try again.
+            assert(insn->mem[mem_idx].status==0 || insn->mem[mem_idx].status==1);
+        }
+    }
+
+    // Print GPR
+    if (print_register) regfile_pp(insn);
+}
+
+uint64_t print_back(const int64_t unprinted_size,
+                peekaboo_trace_t *peekaboo_trace_ptr, 
+                const size_t insn_idx)
+{
+    if (unprinted_size <= 0 || insn_idx < 1)
+    {
+        for (size_t prev_idx = ((int64_t)insn_idx - 5 > 0) ? (insn_idx - 5) : 1; prev_idx <= insn_idx; prev_idx++)
+        {
+            peekaboo_insn_t *prev_insn = get_peekaboo_insn(prev_idx, peekaboo_trace_ptr);
+            print_peekaboo_insn(prev_insn, peekaboo_trace_ptr, prev_idx, false);
+            free_peekaboo_insn(prev_insn);
+        }
+        return (insn_idx+1);
+    }
+    peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
+    uint64_t rvalue = print_back(unprinted_size - insn->size, peekaboo_trace_ptr, insn_idx - 1);
+    print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, true);
+    free_peekaboo_insn(insn);
+    return rvalue;
+}
+
 int main(int argc, char *argv[])
 {
     // Argument check
@@ -189,26 +271,34 @@ int main(int argc, char *argv[])
 
     // Load trace
     char *trace_path = argv[1];
-    peekaboo_trace_t mytrace;
-    load_trace(trace_path, &mytrace);
+    peekaboo_trace_t *peekaboo_trace_ptr = malloc(sizeof(peekaboo_trace_t));
+    if (peekaboo_trace_ptr == NULL) PEEKABOO_DIE("Fail to malloc trace structure.");
+    load_trace(trace_path, peekaboo_trace_ptr);
 
     // Get and print the length of the trace
-    const size_t num_insn = get_num_insn(&mytrace);
+    const size_t num_insn = get_num_insn(peekaboo_trace_ptr);
     printf("Total instructions: %ld\n", num_insn);
+    digits = (uint8_t) log10(num_insn) + 2;
 
-    uint8_t digits = (uint8_t) log10(num_insn);
-
-    // Maintain a buffer to store rawbytes
+    // Maintain a circular buffer to store seen rawbytes
     size_t block_size;
+    struct circular_buffer_t raw_bytes_buffer;
     if (sizeof(target_block))
-        block_size = sizeof(target_block) - 1;
+    {
+        block_size = sizeof(target_block) - 1; // Ignore the '/0' at the end
+        printf("Search for the following block:");
+        for (size_t idx = 0; idx < block_size; idx++)
+        {
+            if (idx % 16 == 0) printf("\n\t");
+            printf("%02hhx ", target_block[idx]);
+        }
+    }
     else
         block_size = 0;
-    struct circular_buffer_t raw_bytes_buffer;
-    raw_bytes_buffer.buffer = malloc(block_size);
-    if (raw_bytes_buffer.buffer == NULL) PEEKABOO_DIE("Fail to malloc circular buffer.");
     raw_bytes_buffer.head = 0;
-    raw_bytes_buffer.size = block_size;
+    raw_bytes_buffer.size = (block_size > 256) ? block_size : 256;  // Fast circular buffer with size 256
+    raw_bytes_buffer.buffer = malloc(raw_bytes_buffer.size);
+    if (raw_bytes_buffer.buffer == NULL) PEEKABOO_DIE("Fail to malloc circular buffer.");
     uint64_t num_found_block = 0;
 
     // We print all instructions sequentially. 
@@ -216,9 +306,9 @@ int main(int argc, char *argv[])
     for (size_t insn_idx=1; insn_idx<=num_insn; insn_idx++)
     {
         // Get instruction ptr by instruction index
-        peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, &mytrace);
+        peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
         
-        // Update buffer and check buffer
+        // Buffer search
         if (block_size)
         {
             update_raw_byte_buffer(&raw_bytes_buffer, insn->rawbytes, insn->size);
@@ -226,7 +316,10 @@ int main(int argc, char *argv[])
             {
                 num_found_block ++;
                 print_next = PRINT_NEXT;
-                printf("\n[Target block %lu] ends at 0x%"PRIx64". Print next %d instructions:\n", num_found_block, insn->addr, print_next);
+                printf("\n[Target block %lu] ends at [%lu]0x%"PRIx64":\n", num_found_block, insn_idx, insn->addr);
+                print_back(block_size, peekaboo_trace_ptr, insn_idx);
+                free_peekaboo_insn(insn);
+                continue;
             }
         }
 
@@ -237,58 +330,14 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        // Print instruction index
-        printf("[%lu] ", insn_idx);
-        if (!print_memory && !print_register)
-            for (uint8_t idx = (uint8_t)log10f(insn_idx); idx < digits; idx++) printf(" ");
-
-        // Print instruction ea
-        printf("0x%"PRIx64"", insn->addr);
-        
-        // Print Rawbytes
-        printf(":\t ");
-        for (uint8_t rawbyte_idx = 0; rawbyte_idx < insn->size; rawbyte_idx++)
-        {
-            if (insn->rawbytes[rawbyte_idx] < 16) printf("0");
-            printf("%"PRIx8" ", insn->rawbytes[rawbyte_idx]);
-        }
-
-        // Print disassemble for instructions using libopcodes
-        if (print_disasm) 
-        {
-            #ifdef ASM
-            // Pretty print 
-            for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
-            printf("\t");
-
-            // Disasmble the instruction
-            int rvalue = disassemble_raw((enum ARCH)mytrace.internal->arch, false, insn->rawbytes, insn->size);
-            if(rvalue != 0) exit(1);
-            #endif
-        }
-        printf("\n");
-
-        // Print memory ops
-        if (print_memory && (insn->num_mem > 0))
-        {
-            for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
-            {
-                printf("\t");
-                printf(insn->mem[mem_idx].status ? "Memory Write: " : "Memory Read: ");
-                printf("%d bytes @ 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr);
-
-                // Assert fails at this line? Delete memrefs_offsets in trace folder and try again.
-                assert(insn->mem[mem_idx].status==0 || insn->mem[mem_idx].status==1);
-            }
-        }
-
-        // Print GPRs
-        if (print_register) regfile_pp(insn);
+        // Body of print
+        print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false);
 
         // Free instruction ptr
         free_peekaboo_insn(insn);
     }
 
     free(raw_bytes_buffer.buffer);
+    free(peekaboo_trace_ptr);
     return 0;
 }
