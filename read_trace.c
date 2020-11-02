@@ -35,6 +35,25 @@ bool print_disasm   = true;
 bool print_memory   = false;
 bool print_register = false;
 
+bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
+{
+    /*
+    if (insn_idx == num_insn)
+    {
+        print_register  = true;
+        print_memory    = true;
+    }
+    else
+    {
+        print_register  = false;
+        print_memory    = false;    
+    }
+    */
+
+    /* Return true to print this instruction. Otherwise, skip this instruction printing. */
+    return true;
+    // return false;
+}
 
 static void display_usage(char *program_name)
 {
@@ -90,27 +109,6 @@ int disassemble_raw(const enum ARCH arch, const bool big_endian, uint8_t *input_
     return 0;
 }
 #endif
-
-
-bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
-{
-    /*
-    if (insn_idx == num_insn)
-    {
-        print_register  = true;
-        print_memory    = true;
-    }
-    else
-    {
-        print_register  = false;
-        print_memory    = false;    
-    }
-    */
-
-    /* Return true to print this instruction. Otherwise, skip this instruction printing. */
-    return true;
-    // return false;
-}
 
 int main(int argc, char *argv[])
 {
