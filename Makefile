@@ -2,7 +2,7 @@
 RM ?= rm -f
 GREP ?= grep
 LDCONF ?= /sbin/ldconfig
-BREW ?= brew
+FILE ?= file
 
 # Support MacOS and Linux
 MACHINE := $(shell $(CC) -dumpmachine 2>/dev/null)
@@ -55,7 +55,7 @@ ifeq ($(IS_LINUX),1)
 endif
 ifeq ($(IS_DARWIN), 1)
 	# MacOS doesn't have ldconf
-	HAVE_LIBPEEKABOO_SO ?= $(shell $(BREW) list | $(GREP) -c -i "peekaboo")
+	HAVE_LIBPEEKABOO_SO ?= $(shell $(FILE) /usr/local/lib/libpeekaboo.dylib | $(GREP) -c -i "dynamically linked shared library")
 endif
 
 # Targets and Recipes
