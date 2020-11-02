@@ -36,7 +36,7 @@ CFLAGS ?= $(WARNINGS) $(OPT) -I$(IDIR) -L$(LDIR)
 ifneq ($(IS_DARWIN),0)
   AR = libtool
   ARFLAGS = -static -o
-  CC ?= c++
+  CC ?= gcc
 endif
 
 # Default prefix for make install
@@ -86,6 +86,9 @@ debug: CFLAGS += -DDEBUG -g
 debug: all
 
 libpeekaboo.a: $(LIBOBJ)
+ifneq ($(IS_DARWIN),0)
+	-$(CP) *.o $(ARCH_DIR)/
+endif
 	$(AR) $(ARFLAGS) $@ $^
 	$(RANLIB) $@
 
@@ -160,11 +163,11 @@ remove uninstall:
 
 .PHONY: clean
 clean:
-	-$(RM) $(LIBOBJ) $(patsubst %.gch,%.o,$(LIBOBJ))
+	-$(RM) *.o *.gch $(ARCH_DIR)/*.o $(ARCH_DIR)*.gch
 	-$(RM) libpeekaboo.a libpeekaboo.so libpeekaboo.so$(SOLIB_VERSION_SUFFIX) libpeekaboo.so$(SOLIB_COMPAT_SUFFIX) libpeekaboo.dylib
 
 
 .PHONY: installation_hint
 installation_hint:
+	$(info To install peekaboo library to your system, run "sudo make install")
 	$(info )
-	$(info To install peekaboo library to your system, run "$$sudo make install")
