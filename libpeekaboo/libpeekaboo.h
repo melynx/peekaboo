@@ -22,7 +22,7 @@
 #include <dirent.h>
 
 #define MAX_PATH (256)
-#define LIBPEEKABOO_VER 003
+#define LIBPEEKABOO_VER 004
 
 #define PEEKABOO_DIE(...) {fprintf(stderr, __VA_ARGS__); exit(1);}
 
@@ -54,15 +54,27 @@ enum ARCH {
 };
 // end of type definitions
 
+//------Supported archs declarations-----------------------
+#include "arch/amd64.h"
+#include "arch/aarch64.h"
+#include "arch/x86.h"
+//---------------------------------------------------------
+
 // Misc functions
 int create_folder(char *name, char *output, uint32_t max_size);
 int create_trace_file(char *dir_path, char *filename, int size, FILE **output);
 // end
 
 //-----common structure declaration-----------------------
+typedef union {
+	storage_option_amd64_t amd64; 
+	uint64_t size;
+}storage_options_t;
+
 typedef struct {
 	uint32_t arch;
 	uint32_t version;
+	storage_options_t storage_options;
 } metadata_hdr_t;
 
 typedef struct insn_ref {
@@ -88,11 +100,6 @@ typedef struct {
 } memfile_t;
 //---------------------------------------------------------
 
-//------Supported archs declarations-----------------------
-#include "arch/amd64.h"
-#include "arch/aarch64.h"
-#include "arch/x86.h"
-//---------------------------------------------------------
 
 // peekaboo trace definition
 typedef struct {
@@ -119,6 +126,8 @@ typedef struct {
 	memfile_t *memfile_buf;
 	memref_t *memref_buf;
 	uint32_t version;
+
+	storage_options_t storage_options;
 } peekaboo_internal_t;
 
 typedef struct {

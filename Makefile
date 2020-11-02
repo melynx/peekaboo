@@ -69,7 +69,7 @@ debug: all
 read_trace: read_trace.o $(LDLIBS) 
 ifeq ($(HAVE_LIBPEEKABOO_SO), 0)
 	@# Cannot find peekaboo installed. Static link!
-	$(CC) -o $@ $(strip $(CFLAGS) -L$(DIR_PEEKABOO) $^)
+	$(CC) -o $@ $(strip $(CFLAGS) $< $(patsubst -lpeekaboo,$(DIR_PEEKABOO)/libpeekaboo.a,$(LDLIBS)))
 else
 	@# Dynamic link if libpeekaboo has been installed
 	$(CC) -o $@ $(strip $(CFLAGS) $^)

@@ -25,7 +25,7 @@ peekaboo_dr: [DynamoRIO](https://github.com/DynamoRIO/dynamorio)
 Install libpeekaboo:
 ```
 cd libpeekaboo
-make
+make (DISABLE_SIMD=1 | DISABLE_FXSAVE=1 | ONLY_GPR=1)
 sudo make install
 ```
 APIs:

@@ -294,6 +294,28 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 	trace_ptr->internal->version = meta.version;
 	fprintf(stderr, "libpeekaboo: Trace version: %d\n", meta.version);
 
+	if (trace_ptr->internal->version >= 4)
+	{
+		// New trace format that can customize which registers to store
+		if (trace_ptr->internal->arch == ARCH_AMD64)
+		{
+			trace_ptr->internal->storage_options.amd64.has_simd = meta.storage_options.amd64.has_simd;
+			trace_ptr->internal->storage_options.amd64.has_fxsave = meta.storage_options.amd64.has_fxsave;
+			fprintf(stderr, "Stored register: GPRs ");
+			if (trace_ptr->internal->storage_options.amd64.has_simd) fprintf(stderr, "SIMD ");
+			if (trace_ptr->internal->storage_options.amd64.has_fxsave) fprintf(stderr, "FXSAVE ");
+			fprintf(stderr, "\n");
+		}
+		else fprintf(stderr, "Not amd64: %d:%d\n", trace_ptr->internal->arch, ARCH_AMD64);
+
+	}
+	else
+	{
+		// Trace version lower than 003, stores everything
+		trace_ptr->internal->storage_options.amd64.has_simd = 1;
+		trace_ptr->internal->storage_options.amd64.has_fxsave = 1;
+	}
+
 	switch (meta.arch)
 	{
 		case ARCH_AMD64:
@@ -360,6 +382,19 @@ void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t versio
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
+	if (arch = ARCH_AMD64)
+	{
+		#ifdef _STORE_SIMD
+			metadata.storage_options.amd64.has_simd = 1;
+		#else
+			metadata.storage_options.amd64.has_simd = 0;
+		#endif
+		#ifdef _STORE_FXSAVE
+			metadata.storage_options.amd64.has_fxsave = 1;
+		#else
+			metadata.storage_options.amd64.has_fxsave = 0;
+		#endif
+	}
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	fflush(trace_ptr->metafile);
 	fclose(trace_ptr->metafile);

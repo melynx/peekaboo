@@ -67,12 +67,20 @@ LDIR ?= .
 # Source and object files
 ARCH_SRC = $(wildcard $(ARCH_DIR)/*.c)
 ARCH_OBJ = $(patsubst %.c,%.o,$(ARCH_SRC))
+ARCH_AMD64_CONF = $(ARCH_DIR)/amd64_conf.h
 OBJ = $(patsubst %.c,%.o,$(wildcard *.c))
 LIBOBJ = $(OBJ) $(ARCH_OBJ)
 
+# Configure
+ifeq ($(DISABLE_SIMD),)
+endif
+ifeq ($(DISABLE_FXSAVE),)
+endif
+
+
 # Targets and Recipes
 .PHONY: all
-all: static dynamic | installation_hint
+all: static | dynamic installation_hint
 ifneq ($(IS_DARWIN),0)
 static: libpeekaboo.a
 dynamic: libpeekaboo.dylib
@@ -86,6 +94,16 @@ debug: CFLAGS += -DDEBUG -g
 debug: all
 
 libpeekaboo.a: $(LIBOBJ)
+ifneq ($(DISABLE_SIMD), 1)
+	$(shell echo "#define _STORE_SIMD" > $(ARCH_AMD64_CONF))
+endif
+ifneq ($(DISABLE_FXSAVE), 1)
+	$(shell echo "#define _STORE_FXSAVE" >> $(ARCH_AMD64_CONF))
+endif
+ifeq ($(ONLY_GPR), 1)
+	$(shell echo > $(ARCH_AMD64_CONF))
+endif
+
 ifneq ($(IS_DARWIN),0)
 	-$(CP) *.o $(ARCH_DIR)/
 endif

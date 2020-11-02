@@ -25,7 +25,13 @@
 #include <stddef.h>
 #include <inttypes.h>
 
+typedef struct storage_option_amd64{
+	uint32_t has_simd;
+	uint32_t has_fxsave;
+} storage_option_amd64_t;
+
 #include "../libpeekaboo.h"
+#include "amd64_conf.h"
 
 #define AMD64_NUM_SIMD_SLOTS 16
 
@@ -114,8 +120,12 @@ typedef struct {
 
 typedef struct regfile_amd64{
 	amd64_cpu_gr_t gpr;
+#ifdef _STORE_SIMD
 	amd64_cpu_simd_t simd;
+#endif
+#ifdef _STORE_FXSAVE
 	fxsave_area_t fxsave;
+#endif
 } regfile_amd64_t;
 
 void amd64_regfile_pp(regfile_amd64_t *regfile);

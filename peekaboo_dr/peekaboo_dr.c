@@ -38,6 +38,7 @@
 		char *arch_str = "AMD64";
 		enum ARCH arch = ARCH_AMD64;
 		typedef regfile_amd64_t regfile_t;
+		const storage_option_amd64_t storage_option;
 		void copy_regfile(regfile_t *regfile_ptr, dr_mcontext_t *mc)
 		{
 			regfile_ptr->gpr.reg_rdi = mc->rdi;
@@ -62,10 +63,14 @@
 			//printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
 
 			// here, we cast the simd structure into an array of uint256_t
+			#ifdef _STORE_SIMD
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
+			#endif
 
 			// here we'll call fxsave, that saves into the fxsave area.
+			#ifdef _STORE_FXSAVE
 			proc_save_fpstate((byte *)&regfile_ptr->fxsave);
+			#endif
 		}
 	#else
 		char *arch_str = "X86";
