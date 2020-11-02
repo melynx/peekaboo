@@ -69,7 +69,7 @@ ARCH_SRC = $(wildcard $(ARCH_DIR)/*.c)
 ARCH_OBJ = $(patsubst %.c,%.o,$(ARCH_SRC))
 ARCH_AMD64_CONF = $(ARCH_DIR)/amd64_conf.h
 OBJ = $(patsubst %.c,%.o,$(wildcard *.c))
-LIBOBJ = $(OBJ) $(ARCH_OBJ)
+LIBOBJ = $(ARCH_OBJ) | $(OBJ)
 
 # Configure
 ifeq ($(DISABLE_SIMD),)
@@ -80,7 +80,7 @@ endif
 
 # Targets and Recipes
 .PHONY: all
-all: static | dynamic installation_hint
+all: static dynamic | installation_hint
 ifneq ($(IS_DARWIN),0)
 static: libpeekaboo.a
 dynamic: libpeekaboo.dylib
@@ -94,16 +94,6 @@ debug: CFLAGS += -DDEBUG -g
 debug: all
 
 libpeekaboo.a: $(LIBOBJ)
-ifneq ($(DISABLE_SIMD), 1)
-	$(shell echo "#define _STORE_SIMD" > $(ARCH_AMD64_CONF))
-endif
-ifneq ($(DISABLE_FXSAVE), 1)
-	$(shell echo "#define _STORE_FXSAVE" >> $(ARCH_AMD64_CONF))
-endif
-ifeq ($(ONLY_GPR), 1)
-	$(shell echo > $(ARCH_AMD64_CONF))
-endif
-
 ifneq ($(IS_DARWIN),0)
 	-$(CP) *.o $(ARCH_DIR)/
 endif
@@ -123,9 +113,25 @@ endif
 %.o: %.c
 	$(CC) $(strip $(CFLAGS) $(PIC_FLAG) -c) $<
 
-$(ARCH_DIR)/%.o : $(ARCH_DIR)/%.c
+$(ARCH_DIR)/%.o : $(ARCH_DIR)/%.c | config
 	$(CC) $(strip $(CFLAGS) $(PIC_FLAG) -c) -o $(patsubst %.c,%.o,$@) $<
 
+# Configuration for what to store
+.PHONY: config
+config:
+ifeq ($(ONLY_GPR), 1)
+	$(info Only stores GPRs.)
+	$(shell echo > $(ARCH_AMD64_CONF))
+else
+ifneq ($(DISABLE_SIMD), 1)
+	$(info Enable SIMD storage.)
+	$(shell echo "#define _STORE_SIMD" > $(ARCH_AMD64_CONF))
+endif
+ifneq ($(DISABLE_FXSAVE), 1)
+	$(info Enable FXSAVE storage.)
+	$(shell echo "#define _STORE_FXSAVE" >> $(ARCH_AMD64_CONF))
+endif
+endif
 
 .PHONY: install
 install:

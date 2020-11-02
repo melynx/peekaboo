@@ -292,7 +292,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 	size_t fread_bytes = fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	trace_ptr->internal->arch = meta.arch;
 	trace_ptr->internal->version = meta.version;
-	fprintf(stderr, "libpeekaboo: Trace version: %d\n", meta.version);
+	fprintf(stderr, "Trace's libpeekaboo version: %d\n", meta.version);
 
 	if (trace_ptr->internal->version >= 4)
 	{
@@ -306,8 +306,6 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 			if (trace_ptr->internal->storage_options.amd64.has_fxsave) fprintf(stderr, "FXSAVE ");
 			fprintf(stderr, "\n");
 		}
-		else fprintf(stderr, "Not amd64: %d:%d\n", trace_ptr->internal->arch, ARCH_AMD64);
-
 	}
 	else
 	{
