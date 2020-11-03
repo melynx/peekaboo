@@ -142,18 +142,18 @@ typedef struct {
 } peekaboo_trace_t;
 // end
 
+/*** Tracer Utility ***/
 peekaboo_trace_t *create_trace(char *name);
-void close_trace(peekaboo_trace_t *trace);
-void load_trace(char *, peekaboo_trace_t *trace);
-
 void write_metadata(peekaboo_trace_t *, enum ARCH, uint32_t version);
-size_t num_regfile(peekaboo_trace_t *);
+void close_trace(peekaboo_trace_t *trace);
 
+/*** Trace Reader Utility ***/
+void load_trace(char *, peekaboo_trace_t *trace);
+void free_peekaboo_trace(peekaboo_trace_t *trace_ptr); // Must be called to free trace pointer loaded by load_trace
+peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace);
+void free_peekaboo_insn(peekaboo_insn_t *insn_ptr); // Must be called to free instruction pointed returned by get_peekaboo_insn
 uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
 size_t get_num_insn(peekaboo_trace_t *);
-peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace);
-void free_peekaboo_insn(peekaboo_insn_t *insn_ptr);
-void free_peekaboo_trace(peekaboo_trace_t *trace_ptr);
 void regfile_pp(peekaboo_insn_t *insn);
 
 #endif
