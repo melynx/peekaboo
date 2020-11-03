@@ -293,6 +293,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 	trace_ptr->internal->arch = meta.arch;
 	trace_ptr->internal->version = meta.version;
 	fprintf(stderr, "Trace's libpeekaboo version: %d\n", meta.version);
+	fclose(trace_ptr->metafile);
 
 	if (trace_ptr->internal->version >= 4)
 	{
@@ -373,6 +374,18 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 
 	// All good. Ready to go~!
 	return ;
+}
+
+void free_peekaboo_trace(peekaboo_trace_t *trace_ptr)
+{
+	fclose(trace_ptr->bytes_map);
+	fclose(trace_ptr->insn_trace);
+	fclose(trace_ptr->regfile);
+	fclose(trace_ptr->memfile);
+	fclose(trace_ptr->memrefs);
+	free(trace_ptr->internal->bytes_map_buf);
+	free(trace_ptr->internal);
+	free(trace_ptr);
 }
 
 void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t version)

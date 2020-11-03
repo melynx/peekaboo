@@ -30,7 +30,7 @@
 #endif
 
 // Print how many instructions if block matches
-#define PRINT_NEXT 100
+#define PRINT_NEXT 30
 
 // The instruction raw bytes you are looking for
 unsigned char target_block[] = {
@@ -338,6 +338,6 @@ int main(int argc, char *argv[])
     }
 
     free(raw_bytes_buffer.buffer);
-    free(peekaboo_trace_ptr);
+    free_peekaboo_trace(peekaboo_trace_ptr);
     return 0;
 }

@@ -153,6 +153,7 @@ uint64_t get_addr(size_t id, peekaboo_trace_t *trace);
 size_t get_num_insn(peekaboo_trace_t *);
 peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace);
 void free_peekaboo_insn(peekaboo_insn_t *insn_ptr);
+void free_peekaboo_trace(peekaboo_trace_t *trace_ptr);
 void regfile_pp(peekaboo_insn_t *insn);
 
 #endif

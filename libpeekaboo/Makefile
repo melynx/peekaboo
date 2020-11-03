@@ -69,7 +69,7 @@ ARCH_SRC = $(wildcard $(ARCH_DIR)/*.c)
 ARCH_OBJ = $(patsubst %.c,%.o,$(ARCH_SRC))
 ARCH_AMD64_CONF = $(ARCH_DIR)/amd64_conf.h
 OBJ = $(patsubst %.c,%.o,$(wildcard *.c))
-LIBOBJ = $(ARCH_OBJ) | $(OBJ)
+LIBOBJ = $(ARCH_OBJ) $(OBJ)
 
 # Configure
 ifeq ($(DISABLE_SIMD),)
