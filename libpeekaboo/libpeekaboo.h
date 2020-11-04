@@ -22,7 +22,7 @@
 #include <dirent.h>
 
 #define MAX_PATH (256)
-#define LIBPEEKABOO_VER 004
+#define LIBPEEKABOO_VER 005
 
 #define PEEKABOO_DIE(...) {fprintf(stderr, __VA_ARGS__); exit(1);}
 
@@ -144,7 +144,7 @@ typedef struct {
 
 /*** Tracer Utility ***/
 peekaboo_trace_t *create_trace(char *name);
-void write_metadata(peekaboo_trace_t *, enum ARCH, uint32_t version);
+void write_metadata(peekaboo_trace_t *, const enum ARCH arch, const uint32_t version);
 void close_trace(peekaboo_trace_t *trace);
 
 /*** Trace Reader Utility ***/

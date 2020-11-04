@@ -44,3 +44,22 @@ void amd64_regfile_pp(regfile_amd64_t *regfile)
 	}
 	printf("\n");
 }
+
+#ifdef _STORE_SEGMENT_REGISTER
+void amd64_sr_pp(amd64_cpu_seg_t *regfile_sr)
+{
+	printf("\tSegment Registers:\n");
+	char *sr_string[] = {"cs",
+						"ss",
+						"ds",
+						"es",
+						"fs",
+						"gs"};
+
+	for (int x=0; x<6; x++)
+	{
+		printf("\t  %s: %hx\n", sr_string[x], ((uint16_t *)&(regfile_sr))[x]);
+	}
+	printf("\n");
+}
+#endif 

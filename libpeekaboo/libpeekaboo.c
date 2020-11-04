@@ -289,6 +289,7 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 
 	// Setup the information
 	metadata_hdr_t meta;
+	memset(&meta, 0x0, sizeof(metadata_hdr_t));
 	size_t fread_bytes = fread(&meta, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	trace_ptr->internal->arch = meta.arch;
 	trace_ptr->internal->version = meta.version;
@@ -302,24 +303,39 @@ void load_trace(char *dir_path, peekaboo_trace_t *trace_ptr)
 		{
 			trace_ptr->internal->storage_options.amd64.has_simd = meta.storage_options.amd64.has_simd;
 			trace_ptr->internal->storage_options.amd64.has_fxsave = meta.storage_options.amd64.has_fxsave;
+			trace_ptr->internal->storage_options.amd64.has_sr = meta.storage_options.amd64.has_sr;
 			fprintf(stderr, "Stored register: GPRs ");
 			if (trace_ptr->internal->storage_options.amd64.has_simd) fprintf(stderr, "SIMD ");
 			if (trace_ptr->internal->storage_options.amd64.has_fxsave) fprintf(stderr, "FXSAVE ");
+			if (trace_ptr->internal->storage_options.amd64.has_sr) fprintf(stderr, "SegmentRegs ");
 			fprintf(stderr, "\n");
 		}
 	}
 	else
 	{
-		// Trace version lower than 003, stores everything
+		// Trace version lower than 003, stores everything but not segment registers
 		trace_ptr->internal->storage_options.amd64.has_simd = 1;
 		trace_ptr->internal->storage_options.amd64.has_fxsave = 1;
+		trace_ptr->internal->storage_options.amd64.has_sr = 0;
 	}
 
 	switch (meta.arch)
 	{
 		case ARCH_AMD64:
 			trace_ptr->internal->ptr_size = 8;
-			trace_ptr->internal->regfile_size = sizeof(regfile_amd64_t);
+			trace_ptr->internal->regfile_size = sizeof(amd64_cpu_gr_t);
+			if (trace_ptr->internal->storage_options.amd64.has_sr) 
+			{
+				trace_ptr->internal->regfile_size += sizeof(amd64_cpu_seg_t);
+			}
+			if (trace_ptr->internal->storage_options.amd64.has_simd) 
+			{
+				trace_ptr->internal->regfile_size += sizeof(amd64_cpu_simd_t);
+			}
+			if (trace_ptr->internal->storage_options.amd64.has_fxsave) 
+			{
+				trace_ptr->internal->regfile_size += sizeof(fxsave_area_t);
+			}
 			break;
 		case ARCH_AARCH64:
 			trace_ptr->internal->ptr_size = 8;
@@ -388,23 +404,33 @@ void free_peekaboo_trace(peekaboo_trace_t *trace_ptr)
 	free(trace_ptr);
 }
 
-void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t version)
+void write_metadata(peekaboo_trace_t *trace_ptr, const enum ARCH arch, const uint32_t version)
 {
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
-	if (arch = ARCH_AMD64)
+	if (arch == ARCH_AMD64)
 	{
+		printf("Tracing registers: GPRs ");
 		#ifdef _STORE_SIMD
 			metadata.storage_options.amd64.has_simd = 1;
+			printf("SIMD ");
 		#else
 			metadata.storage_options.amd64.has_simd = 0;
 		#endif
 		#ifdef _STORE_FXSAVE
 			metadata.storage_options.amd64.has_fxsave = 1;
+			printf("FXSAVE ");
 		#else
 			metadata.storage_options.amd64.has_fxsave = 0;
 		#endif
+		#ifdef _STORE_SEGMENT_REGISTER
+			metadata.storage_options.amd64.has_sr = 1;
+			printf("SegmentRegs ");
+		#else
+			metadata.storage_options.amd64.has_sr = 0;
+		#endif
+		printf("\n");
 	}
 	fwrite(&metadata, sizeof(metadata_hdr_t), 1, trace_ptr->metafile);
 	fflush(trace_ptr->metafile);

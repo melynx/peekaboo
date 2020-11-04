@@ -42,7 +42,7 @@ unsigned char target_block[] = {
 // Users can edit print_filter() to modify these booleans during runtime.
 bool print_disasm   = true;
 bool print_memory   = false;
-bool print_register = false;
+bool print_register = true;
 
 // Structure
 struct circular_buffer_t {

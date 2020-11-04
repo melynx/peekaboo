@@ -131,6 +131,10 @@ ifneq ($(DISABLE_FXSAVE), 1)
 	$(info Enable FXSAVE storage.)
 	$(shell echo "#define _STORE_FXSAVE" >> $(ARCH_AMD64_CONF))
 endif
+ifneq ($(DISABLE_SR), 1)
+	$(info Enable Segment Register storage.)
+	$(shell echo "#define _STORE_SEGMENT_REGISTER" >> $(ARCH_AMD64_CONF))
+endif
 endif
 
 .PHONY: install
