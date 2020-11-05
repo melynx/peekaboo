@@ -62,22 +62,6 @@
 			regfile_ptr->gpr.reg_rip = (uint64_t) mc->xip;
 			//printf("czl:%p\n", regfile_ptr->gpr.reg_rip);
 
-			// Store Segment Registers if required
-			// KH: DynamoRIO doesn't have API for this on Linux. Inline assembly.
-			// KH: FIXUP! Now it stores the segment registers for DynamoRIO. Not the application's.
-			#ifdef _STORE_SEGMENT_REGISTER
-				#ifdef __GNUC__
-				{
-					asm volatile("movw %%cs, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_cs));
-					asm volatile("movw %%ds, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_ds));
-					asm volatile("movw %%ss, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_ss));
-					asm volatile("movw %%es, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_es));
-					asm volatile("movw %%fs, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_fs));
-					asm volatile("movw %%gs, %[Reg]" : [Reg] "=r" (regfile_ptr->sr.reg_gs));
-				}
-				#endif
-			#endif
-
 			// here, we cast the simd structure into an array of uint256_t
 			#ifdef _STORE_SIMD
 			memcpy(&regfile_ptr->simd, mc->ymm, sizeof(regfile_ptr->simd.ymm0)*MCXT_NUM_SIMD_SLOTS);
@@ -414,7 +398,7 @@ static void init_thread_in_process(void *drcontext)
 	drmgr_set_tls_field(drcontext, tls_idx, data);
 
 	int pid = dr_get_process_id();
-	if(snprintf(buf, 256, "%s/%d", trace_dir, pid) < 0) PEEKABOO_DIE("What should not happen happens. snprintf error");
+	snprintf(buf, 256, "%s/%d", trace_dir, pid);
 
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
@@ -438,7 +422,7 @@ static void event_thread_init(void *drcontext)
 	root_pid = dr_get_process_id();
 
 	char name[256];
-	if (snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid) < 0) PEEKABOO_DIE("What should not happen happens. snprintf error");
+	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
 	if (create_folder(name, trace_dir, 256))	PEEKABOO_DIE("Peekaboo: Unable to create directory %s.\n", name);
 	//char *resolved_name = realpath(name, trace_dir);
 	//fprintf(stderr, "I am here~ %s ; %s; \n", trace_dir, name);
@@ -446,10 +430,10 @@ static void event_thread_init(void *drcontext)
 
 	dr_mutex_lock(mutex);
 	create_trace_file(trace_dir, "insn.bytemap", 256, &bytes_map_file);
-	if (snprintf(name, 256, "%s/insn.bytemap", trace_dir) < 0) PEEKABOO_DIE("What should not happen happens. snprintf error");
+	snprintf(name, 256, "%s/insn.bytemap", trace_dir);
 	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);
 
-	if (snprintf(name, 256, "%s/process_tree.txt", trace_dir) < 0) PEEKABOO_DIE("What should not happen happens. snprintf error");
+	snprintf(name, 256, "%s/process_tree.txt", trace_dir);
 	FILE * fp;
 	fp = fopen(name, "w");
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), root_pid);
@@ -465,7 +449,7 @@ static void event_thread_init(void *drcontext)
 static void fork_init(void *drcontext)
 {	
 	char name[256];
-	if (snprintf(name, 256, "%s/process_tree.txt", trace_dir) < 0) PEEKABOO_DIE("What should not happen happens. snprintf error");
+	snprintf(name, 256, "%s/process_tree.txt", trace_dir);
 	FILE * fp;
 	dr_mutex_lock(mutex);
 	fp = fopen(name, "a");

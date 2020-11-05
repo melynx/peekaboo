@@ -28,7 +28,6 @@
 typedef struct storage_option_amd64{
 	uint32_t has_simd;
 	uint32_t has_fxsave;
-	uint32_t has_sr;
 } storage_option_amd64_t;
 
 #include "../libpeekaboo.h"
@@ -60,12 +59,12 @@ typedef struct {
 } amd64_cpu_gr_t;
 
 typedef struct {
-	uint16_t reg_cs;
-	uint16_t reg_ss;
-	uint16_t reg_ds;
-	uint16_t reg_es;
-	uint16_t reg_fs;
-	uint16_t reg_gs;
+	uint64_t reg_cs;
+	uint64_t reg_ss;
+	uint64_t reg_ds;
+	uint64_t reg_es;
+	uint64_t reg_fs;
+	uint64_t reg_gs;
 } amd64_cpu_seg_t;
 
 typedef struct {
@@ -121,9 +120,6 @@ typedef struct {
 
 typedef struct regfile_amd64{
 	amd64_cpu_gr_t gpr;
-#ifdef _STORE_SEGMENT_REGISTER
-	amd64_cpu_seg_t sr;
-#endif
 #ifdef _STORE_SIMD
 	amd64_cpu_simd_t simd;
 #endif
@@ -133,9 +129,6 @@ typedef struct regfile_amd64{
 } regfile_amd64_t;
 
 void amd64_regfile_pp(regfile_amd64_t *regfile);
-#ifdef _STORE_SEGMENT_REGISTER
-void amd64_sr_pp(amd64_cpu_seg_t *regfile_sr);
-#endif
 /* End of Regfile */
 
 #endif
