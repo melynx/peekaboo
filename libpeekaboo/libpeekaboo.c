@@ -393,7 +393,7 @@ void write_metadata(peekaboo_trace_t *trace_ptr, enum ARCH arch, uint32_t versio
 	metadata_hdr_t metadata;
 	metadata.arch = arch;
 	metadata.version = version;
-	if (arch = ARCH_AMD64)
+	if (arch == ARCH_AMD64)
 	{
 		#ifdef _STORE_SIMD
 			metadata.storage_options.amd64.has_simd = 1;
