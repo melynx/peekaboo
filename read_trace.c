@@ -317,18 +317,57 @@ uint64_t print_back(const int64_t unprinted_size,
     return rvalue;
 }
 
+int load_pattern(const char* pattern_file_path)
+{
+    // Load pattern, if given.
+    char buffer[BUFFER_SIZE];
+    unsigned int buffer_size = 0;
+    FILE* file = fopen(pattern_file_path, "rb");
+    if (!file) PEEKABOO_DIE("No such pattern file %s\n", pattern_file_path);
+    char c;
+    const char comment_symbol = '#';
+    bool line_is_commented = false;
+    while (fread(&c, 1, 1, file) == 1) 
+    {
+        if (c == comment_symbol) line_is_commented = true;
+        if (line_is_commented)
+        {
+            if (c == '\n') line_is_commented = false;
+            continue;
+        }
+        if (c < '0' || c > '9')
+            if (c < 'a' || c > 'f')
+                if (c < 'A' || c > 'F')
+                {
+                    // this is not a hex char, ignore
+                    continue;
+                }
+        buffer[buffer_size] = c;
+        buffer_size++;
+        if (buffer_size >= BUFFER_SIZE) PEEKABOO_DIE("Pattern too large!");
+    }
+    buffer[buffer_size] = 0x0;
+    fclose(file);
+    target_block = malloc(buffer_size/2+1);
+    if (!target_block) PEEKABOO_DIE("Malloc failed.");
+    int block_size = hex_string_to_uint8_arrary(target_block, buffer);
+    if (block_size <= 0) PEEKABOO_DIE("Error when loading pattern from file.");
+    
+    return block_size;
+}
+
+
 void print_usage(const char* program_name)
 {
     fprintf(stderr, "Usage: %s [Options] path_to_trace_dir\n", program_name);
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -r               \tPrint register values.\n");
     fprintf(stderr, "  -m               \tPrint memory values.\n");
-    fprintf(stderr, "  -s <instr id>    \tPrint trace started from the given id.\n");
+    fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
-    fprintf(stderr, "  -a <memory addr> \tPrint all instructions accessing given memory address.\n");
+    fprintf(stderr, "  -a <memory addr> \tSearch for all instructions accessing given memory address.\n");
     fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace.\n");
     fprintf(stderr, "  -h               \tPrint this help.\n");
-
 }
 
 int main(int argc, char *argv[])
@@ -376,44 +415,9 @@ int main(int argc, char *argv[])
         PEEKABOO_DIE("Missing argument: Trace path expected!\n");
     }
 
-    // Load pattern, if given.
-    char buffer[BUFFER_SIZE];
-    unsigned int buffer_size = 0;
+    // Load pattern
     int block_size = 0;
-    if (is_search)
-    {
-        FILE* file = fopen(pattern_file_path, "rb");
-        if (!file) PEEKABOO_DIE("No such pattern file %s\n", pattern_file_path);
-        char c;
-        const char comment_symbol = '#';
-        bool line_is_commented = false;
-        while (fread(&c, 1, 1, file) == 1) 
-        {
-            if (c == comment_symbol) line_is_commented = true;
-            if (line_is_commented)
-            {
-                if (c == '\n') line_is_commented = false;
-                continue;
-            }
-            if (c < '0' || c > '9')
-                if (c < 'a' || c > 'f')
-                    if (c < 'A' || c > 'F')
-                    {
-                        // this is not a hex char, ignore
-                        continue;
-                    }
-            //printf("%c", c);
-            buffer[buffer_size] = c;
-            buffer_size++;
-            if (buffer_size >= BUFFER_SIZE) PEEKABOO_DIE("Pattern too large!");
-        }
-        buffer[buffer_size] = 0x0;
-        fclose(file);
-        target_block = malloc(buffer_size/2+1);
-        if (!target_block) PEEKABOO_DIE("Malloc failed.");
-        block_size = hex_string_to_uint8_arrary(target_block, buffer);
-        if (block_size <= 0) PEEKABOO_DIE("Error when loading pattern from file.");
-    }
+    if (is_search) block_size = load_pattern(pattern_file_path);
 
     // Print current libpeekaboo version
     fprintf(stderr, "libpeekaboo version: %d\n", LIBPEEKABOO_VER);
@@ -426,8 +430,13 @@ int main(int argc, char *argv[])
 
     // Get and print the length of the trace
     const size_t num_insn = get_num_insn(peekaboo_trace_ptr);
-    printf("Total instructions: %ld\n", num_insn);
     digits = (uint8_t) log10(num_insn) + 2;
+
+    // Print info for memory access search
+    if (target_addr != (uint64_t) -1)
+    {
+        printf("Search for memory access @0x%lx\n", target_addr);
+    }
 
     // Maintain a circular buffer to store seen rawbytes
     struct circular_buffer_t raw_bytes_buffer;
@@ -450,6 +459,7 @@ int main(int argc, char *argv[])
     // We print all instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
     const size_t _loop_ends = (loop_ends) ? loop_ends : num_insn;
+    printf("Range: from %ld to %ld (%ld in total)\n", loop_starts, _loop_ends, num_insn);
     for (size_t insn_idx=loop_starts; insn_idx<=_loop_ends; insn_idx++)
     {
         // Get instruction ptr by instruction index
