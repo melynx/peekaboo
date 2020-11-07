@@ -134,7 +134,7 @@ Then use `pattern.txt` to search:
 ```
 ./read_trace -p pattern.txt ./ls-31401/31401
 ```
-#### Example 5: Search for instructions which accessed certain address
+#### Example 5: Search for instructions which accessed a specific address
 If you want to get all instructions that read/write `0x7fbfc3c3ccde`:
 ```
 ./read_trace -a 0x7fbfc3c3ccde ./ls-31401/31401
