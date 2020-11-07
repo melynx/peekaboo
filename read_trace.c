@@ -21,6 +21,8 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <math.h>
+#include <unistd.h>
+
 
 #include "libpeekaboo/libpeekaboo.h"
 
@@ -32,17 +34,23 @@
 // Print how many instructions if block matches
 #define PRINT_NEXT 30
 
+#define BUFFER_SIZE 512
+
 // The instruction raw bytes you are looking for
-unsigned char target_block[] = {
-    "\x48\x89\xe5"
-    "\x41\x57"
-};
+unsigned char* target_block = NULL;
 
 // What you want to include in ouput?
 // Users can edit print_filter() to modify these booleans during runtime.
 bool print_disasm   = true;
 bool print_memory   = false;
 bool print_register = false;
+
+// Start? End?
+size_t loop_starts = 1;
+int loop_ends = 0; // Default is 0 for printing till the end
+
+// Target memory address 
+uint64_t target_addr = (uint64_t) -1;
 
 // Structure
 struct circular_buffer_t {
@@ -53,16 +61,34 @@ struct circular_buffer_t {
 uint32_t print_next = 0;
 
 
-bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
+bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn, const bool is_search)
 {
     /* Return true to print this instruction. Otherwise, skip this instruction printing. */
     bool rvalue;
 
     // KH: If no target block, then by default print everything
-    if (sizeof(target_block) == 0)
-        rvalue = true;
-    else
+    if (is_search)
         rvalue = false;
+    else
+        rvalue = true;
+
+    if (target_addr != (uint64_t) -1)
+    {
+        rvalue = false;
+        if (insn->num_mem > 0)
+        {
+            for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
+            {
+                if (target_addr >= insn->mem[mem_idx].addr 
+                    &&
+                    target_addr < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
+                {
+                    rvalue = true;
+                    break;
+                }
+            }
+        }
+    }
 
     // If print_next, then overide return value
     if (print_next)
@@ -88,11 +114,41 @@ bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn)
    return rvalue;
 }
 
-static void display_usage(char *program_name)
+int hexchar_to_uint8(uint8_t *output_uint8_ptr, const char input_char)
 {
-    printf("Usage: %s <trace_dir>\n", program_name);
-    printf("\t<trace_dir>: Path to the sub directory of a process/thread. e.g. ~/ls-31401/31401\n");
-    exit(0);
+    if (input_char >= '0' && input_char <= '9')
+    {
+        *output_uint8_ptr = input_char - '0';
+        return 0;
+    }
+    if (input_char >= 'A' && input_char <= 'F')
+    {
+        *output_uint8_ptr = input_char - 'A' + 10;
+        return 0;
+    }
+    if (input_char >= 'a' && input_char <= 'f')
+    {
+        *output_uint8_ptr = input_char - 'a' + 10;
+        return 0;
+    }
+    return -1;
+}
+
+/* Covert hex string into uint8_t array*/
+int hex_string_to_uint8_arrary(uint8_t *uint8_array, const char *hex_string)
+{
+    int size = 0;
+    while(hex_string[0] && hex_string[1])
+    {
+        uint8_t output[2];
+        if (hexchar_to_uint8(&output[0], hex_string[0])==0 && hexchar_to_uint8(&output[1], hex_string[1])==0)
+        {
+            uint8_array[size++] = output[0] * 16 + output[1];
+        }
+        else return -1;
+        hex_string += 2;
+    }
+    return size;
 }
 
 #ifdef ASM
@@ -261,16 +317,109 @@ uint64_t print_back(const int64_t unprinted_size,
     return rvalue;
 }
 
+void print_usage(const char* program_name)
+{
+    fprintf(stderr, "Usage: %s [Options] path_to_trace_dir\n", program_name);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -r               \tPrint register values.\n");
+    fprintf(stderr, "  -m               \tPrint memory values.\n");
+    fprintf(stderr, "  -s <instr id>    \tPrint trace started from the given id.\n");
+    fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
+    fprintf(stderr, "  -a <memory addr> \tPrint all instructions accessing given memory address.\n");
+    fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace.\n");
+    fprintf(stderr, "  -h               \tPrint this help.\n");
+
+}
+
 int main(int argc, char *argv[])
 {
-    // Argument check
-    if (argc!=2) display_usage(argv[0]);
+    int opt;
+    char *pattern_file_path;
+    bool is_search = false;
+    while ((opt = getopt(argc, argv, "hrms:p:e:a:")) != -1) {
+        switch (opt) {
+        case 'r':
+            print_register = true;
+            break;
+        case 'm':
+            print_memory = true;
+            break;
+        case 'p':
+            pattern_file_path = optarg;
+            is_search = true;
+            break;
+        case 's':
+            loop_starts = atoi(optarg);
+            if (loop_starts <= 0) PEEKABOO_DIE("Starting point must be greater than 0");
+            break;
+        case 'e':
+            loop_ends = atoi(optarg);
+            if (loop_ends <= 0) PEEKABOO_DIE("End point must be greater than 0");
+            break;
+        case 'a':
+            if (optarg[0] == '0' && optarg[1] == 'x')
+                target_addr = strtol(&optarg[2], NULL, 16);
+            else
+                target_addr = strtol(optarg, NULL, 16);
+            break;
+        case 'h':
+            fprintf(stderr, "Default.\n");
+            print_usage(argv[0]);
+            exit(EXIT_FAILURE);
+            break;
+        }
+    }
+    // Check mandatory argument
+    if (optind >= argc) 
+    {
+        print_usage(argv[0]);
+        PEEKABOO_DIE("Missing argument: Trace path expected!\n");
+    }
+
+    // Load pattern, if given.
+    char buffer[BUFFER_SIZE];
+    unsigned int buffer_size = 0;
+    int block_size = 0;
+    if (is_search)
+    {
+        FILE* file = fopen(pattern_file_path, "rb");
+        if (!file) PEEKABOO_DIE("No such pattern file %s\n", pattern_file_path);
+        char c;
+        const char comment_symbol = '#';
+        bool line_is_commented = false;
+        while (fread(&c, 1, 1, file) == 1) 
+        {
+            if (c == comment_symbol) line_is_commented = true;
+            if (line_is_commented)
+            {
+                if (c == '\n') line_is_commented = false;
+                continue;
+            }
+            if (c < '0' || c > '9')
+                if (c < 'a' || c > 'f')
+                    if (c < 'A' || c > 'F')
+                    {
+                        // this is not a hex char, ignore
+                        continue;
+                    }
+            //printf("%c", c);
+            buffer[buffer_size] = c;
+            buffer_size++;
+            if (buffer_size >= BUFFER_SIZE) PEEKABOO_DIE("Pattern too large!");
+        }
+        buffer[buffer_size] = 0x0;
+        fclose(file);
+        target_block = malloc(buffer_size/2+1);
+        if (!target_block) PEEKABOO_DIE("Malloc failed.");
+        block_size = hex_string_to_uint8_arrary(target_block, buffer);
+        if (block_size <= 0) PEEKABOO_DIE("Error when loading pattern from file.");
+    }
 
     // Print current libpeekaboo version
     fprintf(stderr, "libpeekaboo version: %d\n", LIBPEEKABOO_VER);
 
     // Load trace
-    char *trace_path = argv[1];
+    char *trace_path = argv[argc - 1];
     peekaboo_trace_t *peekaboo_trace_ptr = malloc(sizeof(peekaboo_trace_t));
     if (peekaboo_trace_ptr == NULL) PEEKABOO_DIE("Fail to malloc trace structure.");
     load_trace(trace_path, peekaboo_trace_ptr);
@@ -281,11 +430,9 @@ int main(int argc, char *argv[])
     digits = (uint8_t) log10(num_insn) + 2;
 
     // Maintain a circular buffer to store seen rawbytes
-    size_t block_size;
     struct circular_buffer_t raw_bytes_buffer;
-    if (sizeof(target_block))
+    if (block_size)
     {
-        block_size = sizeof(target_block) - 1; // Ignore the '/0' at the end
         printf("Search for the following block:");
         for (size_t idx = 0; idx < block_size; idx++)
         {
@@ -293,8 +440,7 @@ int main(int argc, char *argv[])
             printf("%02hhx ", target_block[idx]);
         }
     }
-    else
-        block_size = 0;
+
     raw_bytes_buffer.head = 0;
     raw_bytes_buffer.size = (block_size > 256) ? block_size : 256;  // Fast circular buffer with size 256
     raw_bytes_buffer.buffer = malloc(raw_bytes_buffer.size);
@@ -303,7 +449,8 @@ int main(int argc, char *argv[])
 
     // We print all instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
-    for (size_t insn_idx=1; insn_idx<=num_insn; insn_idx++)
+    const size_t _loop_ends = (loop_ends) ? loop_ends : num_insn;
+    for (size_t insn_idx=loop_starts; insn_idx<=_loop_ends; insn_idx++)
     {
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
@@ -324,7 +471,7 @@ int main(int argc, char *argv[])
         }
 
         // Call print_filter() to decide what should be printed
-        if (!print_filter(insn, insn_idx, num_insn))
+        if (!print_filter(insn, insn_idx, num_insn, is_search))
         {
             free_peekaboo_insn(insn);
             continue;
@@ -337,6 +484,7 @@ int main(int argc, char *argv[])
         free_peekaboo_insn(insn);
     }
 
+    if (target_block) free(target_block);
     free(raw_bytes_buffer.buffer);
     free_peekaboo_trace(peekaboo_trace_ptr);
     return 0;
