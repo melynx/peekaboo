@@ -23,30 +23,44 @@ CFLAGS ?= $(OPT) $(WARNINGS)
 PROJ_HOME := .
 DIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
 
-# We only support binutils-dev 2.29 or later for disasm with libopcodes. 
-# KH: Note that MacOS doesn't use binutils.
-HAVE_GAS := $(shell $(CC) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c "GNU assembler")
-ifneq ($(HAVE_GAS),0)
-	GAS229_OR_LATER := $(shell $(CC) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c -E "GNU assembler version (2\.29|2\.[3-9]|[3-9])")
-	ifneq ($(GAS229_OR_LATER),0)
-		ifneq (, $(shell which dpkg))
-			Binutils_dev_229_OR_LATER := $(shell dpkg -s binutils-dev | $(GREP) -c -E "Version: (2\.29|2\.[3-9]|[3-9])")
-		endif
-		ifneq (, $(Binutils_dev_229_OR_LATER))
-			ifeq ($(Binutils_dev_229_OR_LATER), 1)
-				# We are sure it has right version of binutils-dev
+# Check if have capstone
+ifneq (, $(shell which dpkg))
+HAS_CAPSTONE_DEV := $(shell dpkg -s libcapstone-dev | $(GREP) -c -E "Version: ([4-9])")
+endif
+
+
+ifneq (, $(HAS_CAPSTONE_DEV))
+	# Disasm with Capstone
+	CFLAGS += -DASM_CAPSTONE
+	LDLIBS += -lcapstone
+else # HAS_CAPSTONE_DEV
+	# Disasm with libopcodes
+	# We only support binutils-dev 2.29 or later for disasm with libopcodes. 
+	# KH: Note that MacOS doesn't use binutils.
+	HAVE_GAS := $(shell $(CC) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c "GNU assembler")
+	ifneq ($(HAVE_GAS),0)
+		GAS229_OR_LATER := $(shell $(CC) -xc -c /dev/null -Wa,-v -o/dev/null 2>&1 | $(GREP) -c -E "GNU assembler version (2\.29|2\.[3-9]|[3-9])")
+		ifneq ($(GAS229_OR_LATER),0)
+			ifneq (, $(shell which dpkg))
+				Binutils_dev_229_OR_LATER := $(shell dpkg -s binutils-dev | $(GREP) -c -E "Version: (2\.29|2\.[3-9]|[3-9])")
+			endif
+			ifneq (, $(Binutils_dev_229_OR_LATER))
+				ifeq ($(Binutils_dev_229_OR_LATER), 1)
+					# We are sure it has right version of binutils-dev
+					CFLAGS += -DASM
+					LDLIBS += -lopcodes
+				else 
+					HAVE_GAS_BUT_NO_DEV := 1
+				endif
+			else
+				# Fixup: It has right version of binutils, but not sure if it has binutils-dev correctly.
 				CFLAGS += -DASM
 				LDLIBS += -lopcodes
-			else 
-				HAVE_GAS_BUT_NO_DEV := 1
 			endif
-		else
-			# Fixup: It has right version of binutils, but not sure if it has binutils-dev correctly.
-			CFLAGS += -DASM
-			LDLIBS += -lopcodes
-		endif
-	endif # -DASM
-endif # HAVE_GAS
+		endif # -DASM
+	endif # HAVE_GAS
+
+endif # HAS_CAPSTONE_DEV
 
 # Search for libpeekaboo dynamic library on system
 ifeq ($(IS_LINUX),1)

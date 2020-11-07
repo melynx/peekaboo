@@ -30,20 +30,23 @@
     // binutils-dev >= 2.29 required
     #include <dis-asm.h>
 #endif
+#ifdef ASM_CAPSTONE
+    #include <capstone/capstone.h>
+  	csh capstone_handler;
+#endif
+
 
 // Print how many instructions if block matches
-#define PRINT_NEXT 30
+#define PRINT_NEXT 15
 
 #define BUFFER_SIZE 512
 
-// The instruction raw bytes you are looking for
-unsigned char* target_block = NULL;
 
 // What you want to include in ouput?
 // Users can edit print_filter() to modify these booleans during runtime.
-bool print_disasm   = true;
 bool print_memory   = false;
 bool print_register = false;
+uint32_t print_next = 0;
 
 // Start? End?
 size_t loop_starts = 1;
@@ -53,12 +56,17 @@ int loop_ends = 0; // Default is 0 for printing till the end
 uint64_t target_addr = (uint64_t) -1;
 
 // Structure
-struct circular_buffer_t {
+typedef struct _circular_buffer_t {
     char* buffer;
     size_t head;
     size_t size;
-};
-uint32_t print_next = 0;
+} circular_buffer_t;
+typedef struct _list_node_t {
+    struct _list_node_t *succ;
+    uint64_t addr;
+    size_t cnt;
+} list_node_t;
+list_node_t *list_header = NULL;
 
 
 bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn, const bool is_search)
@@ -199,7 +207,7 @@ int disassemble_raw(const enum ARCH arch, const bool is_big_endian, uint8_t *inp
 }
 #endif
 
-void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr, 
+void update_raw_byte_buffer(circular_buffer_t *raw_bytes_buffer_ptr, 
                             char const *cur_insn_rawbytes, 
                             const uint32_t cur_insn_size)
 {
@@ -210,7 +218,7 @@ void update_raw_byte_buffer(struct circular_buffer_t *raw_bytes_buffer_ptr,
     }
 }
 
-bool is_buffer_matched(struct circular_buffer_t const* raw_bytes_buffer_ptr, 
+bool is_buffer_matched(circular_buffer_t const* raw_bytes_buffer_ptr, 
                        char *target_buffer, 
                        const uint32_t target_buffer_size)
 {
@@ -264,18 +272,30 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
     }
 
     // Print disassemble for instructions using libopcodes
-    if (print_disasm) 
+    #ifdef ASM
     {
-        #ifdef ASM
-            // Pretty print 
-            for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
-            printf("\t");
+        // Pretty print 
+        for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
+        printf("\t");
 
-            // Disasmble the instruction
-            int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
-            if(rvalue != 0) exit(1);
-        #endif
+        // Disasmble the instruction
+        int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
+        if(rvalue != 0) exit(1);
     }
+    #endif
+    #ifdef ASM_CAPSTONE
+    {
+        // Pretty print 
+        for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
+        printf("\t");
+
+        // Disasmble the instruction
+        cs_insn *capstone_insn;
+        size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
+        printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
+        cs_free(capstone_insn, count);
+    }
+    #endif
     printf("\n");
 
     // Print memory ops
@@ -317,7 +337,7 @@ uint64_t print_back(const int64_t unprinted_size,
     return rvalue;
 }
 
-int load_pattern(const char* pattern_file_path)
+int load_pattern(unsigned char **target_block_ptr, const char* pattern_file_path)
 {
     // Load pattern, if given.
     char buffer[BUFFER_SIZE];
@@ -348,14 +368,43 @@ int load_pattern(const char* pattern_file_path)
     }
     buffer[buffer_size] = 0x0;
     fclose(file);
-    target_block = malloc(buffer_size/2+1);
-    if (!target_block) PEEKABOO_DIE("Malloc failed.");
-    int block_size = hex_string_to_uint8_arrary(target_block, buffer);
+    *target_block_ptr = malloc(buffer_size/2+1);
+    if (!*target_block_ptr) PEEKABOO_DIE("Malloc failed.");
+    int block_size = hex_string_to_uint8_arrary(*target_block_ptr, buffer);
     if (block_size <= 0) PEEKABOO_DIE("Error when loading pattern from file.");
     
     return block_size;
 }
 
+void print_pattern(unsigned char* pattern, int block_size)
+{
+    printf("Search for the following snippet (%d bytes):\n", block_size);
+    #ifdef ASM_CAPSTONE
+        cs_insn *capstone_insn;
+        size_t count = cs_disasm(capstone_handler, pattern, block_size, 0x0, 0, &capstone_insn);
+        if (count > 0) 
+        {
+            size_t j;
+            for (j = 0; j < count; j++) 
+            {
+                size_t k;
+                printf("\t");
+                for (k = 0; k < capstone_insn[j].size; k++)
+                    printf("%02hhx ", capstone_insn[j].bytes[k]);
+                for (; k < 8; k++) printf("   ");
+                printf("%s\t\t%s\n", capstone_insn[j].mnemonic, capstone_insn[j].op_str);
+            }
+            cs_free(capstone_insn, count);
+        }
+
+    #else
+        for (size_t idx = 0; idx < block_size; idx++)
+        {
+            if (idx % 16 == 0) printf("\n\t");
+            printf("%02hhx ", pattern[idx]);
+        }
+    #endif
+}
 
 void print_usage(const char* program_name)
 {
@@ -370,8 +419,45 @@ void print_usage(const char* program_name)
     fprintf(stderr, "  -h               \tPrint this help.\n");
 }
 
+void append2list(list_node_t **list_header, const uint64_t addr)
+{
+
+    if (*list_header == NULL)
+    {
+        *list_header = malloc(sizeof(list_node_t));
+        if (!*list_header) PEEKABOO_DIE("Malloc failed.");
+        (*list_header)->addr = addr;
+        (*list_header)->cnt = 1;
+        (*list_header)->succ = NULL;
+    }
+    else
+    {
+        list_node_t *prev_node, *node = *list_header;
+        while (node)
+        {
+            if (node->addr == addr)
+            {
+                node->cnt++;
+                break;
+            }
+            prev_node = node;
+            node = prev_node->succ;
+        }
+        if (node == NULL)
+        {
+            node = malloc(sizeof(list_node_t));
+            if (!node) PEEKABOO_DIE("Malloc failed.");
+            node->addr = addr;
+            node->cnt = 1;
+            node->succ = NULL;
+            prev_node->succ = node;
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    // Argument parsing
     int opt;
     char *pattern_file_path;
     bool is_search = false;
@@ -402,7 +488,6 @@ int main(int argc, char *argv[])
                 target_addr = strtol(optarg, NULL, 16);
             break;
         case 'h':
-            fprintf(stderr, "Default.\n");
             print_usage(argv[0]);
             exit(EXIT_FAILURE);
             break;
@@ -415,12 +500,22 @@ int main(int argc, char *argv[])
         PEEKABOO_DIE("Missing argument: Trace path expected!\n");
     }
 
-    // Load pattern
-    int block_size = 0;
-    if (is_search) block_size = load_pattern(pattern_file_path);
+    // Init capstone
+#ifdef ASM_CAPSTONE
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handler) != CS_ERR_OK) PEEKABOO_DIE("Capstone init error.");
+#endif
 
     // Print current libpeekaboo version
     fprintf(stderr, "libpeekaboo version: %d\n", LIBPEEKABOO_VER);
+
+    // Print info for memory access search
+    if (target_addr != (uint64_t) -1) printf("Search for memory access @0x%lx\n", target_addr);
+
+    // Load and Print search pattern
+    int block_size = 0;
+    unsigned char* target_block = NULL;
+    if (is_search) block_size = load_pattern(&target_block, pattern_file_path);
+    if (block_size) print_pattern(target_block, block_size);
 
     // Load trace
     char *trace_path = argv[argc - 1];
@@ -432,31 +527,15 @@ int main(int argc, char *argv[])
     const size_t num_insn = get_num_insn(peekaboo_trace_ptr);
     digits = (uint8_t) log10(num_insn) + 2;
 
-    // Print info for memory access search
-    if (target_addr != (uint64_t) -1)
-    {
-        printf("Search for memory access @0x%lx\n", target_addr);
-    }
-
-    // Maintain a circular buffer to store seen rawbytes
-    struct circular_buffer_t raw_bytes_buffer;
-    if (block_size)
-    {
-        printf("Search for the following block:");
-        for (size_t idx = 0; idx < block_size; idx++)
-        {
-            if (idx % 16 == 0) printf("\n\t");
-            printf("%02hhx ", target_block[idx]);
-        }
-    }
-
+    // Prepare circular buffer for pattern searching
+    circular_buffer_t raw_bytes_buffer;
     raw_bytes_buffer.head = 0;
     raw_bytes_buffer.size = (block_size > 256) ? block_size : 256;  // Fast circular buffer with size 256
     raw_bytes_buffer.buffer = malloc(raw_bytes_buffer.size);
     if (raw_bytes_buffer.buffer == NULL) PEEKABOO_DIE("Fail to malloc circular buffer.");
     uint64_t num_found_block = 0;
 
-    // We print all instructions sequentially. 
+    // We print instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
     const size_t _loop_ends = (loop_ends) ? loop_ends : num_insn;
     printf("Range: from %ld to %ld (%ld in total)\n", loop_starts, _loop_ends, num_insn);
@@ -465,7 +544,7 @@ int main(int argc, char *argv[])
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
         
-        // Buffer search
+        // Pattern search
         if (block_size)
         {
             update_raw_byte_buffer(&raw_bytes_buffer, insn->rawbytes, insn->size);
@@ -473,8 +552,10 @@ int main(int argc, char *argv[])
             {
                 num_found_block ++;
                 print_next = PRINT_NEXT;
-                printf("\n[Target block %lu] ends at [%lu]0x%"PRIx64":\n", num_found_block, insn_idx, insn->addr);
+                if (num_found_block) printf("\n");
+                printf("[Target block %lu] ends at [%lu]0x%"PRIx64":\n", num_found_block, insn_idx, insn->addr);
                 print_back(block_size, peekaboo_trace_ptr, insn_idx);
+                append2list(&list_header, insn->addr);
                 free_peekaboo_insn(insn);
                 continue;
             }
@@ -494,8 +575,30 @@ int main(int argc, char *argv[])
         free_peekaboo_insn(insn);
     }
 
+    // Print pattern search summary and free linked list
+    if (is_search)
+    {
+        printf("%lu code snippet(s) matched with the given pattern", num_found_block);
+        if (num_found_block)
+        {
+            printf(":\n");
+            list_node_t *node = list_header;
+            while (node != NULL)
+            {
+                printf("  Found pattern at 0x%lx for %ld time(s)\n", node->addr, node->cnt);
+                list_node_t *this_node = node;
+                node = node->succ;
+                free(this_node);
+            }
+        }
+    }
+
+#ifdef ASM_CAPSTONE
+	    cs_close(&capstone_handler);
+#endif
     if (target_block) free(target_block);
     free(raw_bytes_buffer.buffer);
     free_peekaboo_trace(peekaboo_trace_ptr);
+    
     return 0;
 }

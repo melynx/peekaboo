@@ -1,0 +1,12 @@
+# Example pattern file for searching. See README.md for usage.
+55          # push  rbp
+48 89 e5    # mov   rbp,rsp
+
+
+
+# The following formats are also accepted
+# 4889e5
+# \x48 \x89 \xe5
+# "4889e5"
+# "48 89 e5"
+# "\x48\x89\xe5"
