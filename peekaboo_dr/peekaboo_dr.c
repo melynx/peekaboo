@@ -406,11 +406,11 @@ static void init_thread_in_process(void *drcontext)
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
 	
 	char path[512];
-	sprintf(path, "%s/proc_map", buf);
+	snprintf(path, 512, "%s/proc_map", buf);
 
 	if(access(path, F_OK ) == -1 ) 
 	{
-		sprintf(path, "cp /proc/%d/maps %s/proc_map", pid, buf);
+		snprintf(path, 512, "cp /proc/%d/maps %s/proc_map", pid, buf);
 		system(path);
 	}
 
@@ -436,6 +436,7 @@ static void event_thread_init(void *drcontext)
 	snprintf(name, 256, "%s/process_tree.txt", trace_dir);
 	FILE * fp;
 	fp = fopen(name, "w");
+	assert(fp!=NULL);
 	fprintf(fp, "%d-%d\n", dr_get_parent_id(), root_pid);
 	fclose(fp);
 	chmod(name, S_IRWXU|S_IRWXG|S_IRWXO);

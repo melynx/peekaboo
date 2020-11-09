@@ -99,7 +99,8 @@ peekaboo_trace_t *create_trace(char *name)
 	if (create_folder(name, dir_path, MAX_PATH)) PEEKABOO_DIE("libpeekaboo: Unable to create directory %s.\n", name);
 
 	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
-
+	if (!trace_ptr) PEEKABOO_DIE("libpeekaboo: Unable to malloc trace instance.\n");
+	
 	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace_ptr->insn_trace);
 	create_trace_file(dir_path, "regfile", MAX_PATH, &trace_ptr->regfile);
 	create_trace_file(dir_path, "memfile", MAX_PATH, &trace_ptr->memfile);
