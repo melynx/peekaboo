@@ -100,7 +100,7 @@ peekaboo_trace_t *create_trace(char *name)
 
 	trace_ptr = (peekaboo_trace_t *)malloc(sizeof(peekaboo_trace_t));
 	if (!trace_ptr) PEEKABOO_DIE("libpeekaboo: Unable to malloc trace instance.\n");
-	
+
 	create_trace_file(dir_path, "insn.trace", MAX_PATH, &trace_ptr->insn_trace);
 	create_trace_file(dir_path, "regfile", MAX_PATH, &trace_ptr->regfile);
 	create_trace_file(dir_path, "memfile", MAX_PATH, &trace_ptr->memfile);
@@ -242,6 +242,7 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 		if (base_offset!=0) fprintf(stderr, "libpeekaboo: (Trace from a child thread/process?) Re-align the memory offset, starting from %ld.\n", base_offset/sizeof(memfile_t));
 
 		FILE *memrefs_offsets = fopen(path, "wb");
+		if (!memrefs_offsets) PEEKABOO_DIE("libpeekaboo: Fail to open memref file!\n");
 
 		memref_t buffer[1024];
 		size_t write_buffer[1024];

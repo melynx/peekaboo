@@ -1,4 +1,6 @@
 # Peekaboo
+[![deepcode](https://www.deepcode.ai/api/gh/badge?key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwbGF0Zm9ybTEiOiJnaCIsIm93bmVyMSI6Im1lbHlueCIsInJlcG8xIjoicGVla2Fib28iLCJpbmNsdWRlTGludCI6ZmFsc2UsImF1dGhvcklkIjoyNDY3OSwiaWF0IjoxNjA0OTI1NjI0fQ.YSBSFLNaSRmg13ZSL4QDfpDUXTbf5umrrKcCyztJ2PE)](https://www.deepcode.ai/app/gh/melynx/peekaboo/_/dashboard?utm_content=gh%2Fmelynx%2Fpeekaboo)
+
 Peekaboo is an attempt to provide an easily extensible and usable dynamic trace
 format. Peekaboo provides definitions for typical properties expected for
 dynamic traces like instruction addresses, memory operand info, register info,
