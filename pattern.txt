@@ -1,12 +1,22 @@
-# Example pattern file for searching. See README.md for usage.
+# Example pattern file for [-p] pattern matching. Check README.md for more usage via trace reader.
+# Each line is a separated instr. 
+# '#' for comments; "??" for any single raw byte; "**" for any single Instr.
+
 55          # push  rbp
 48 89 e5    # mov   rbp,rsp
+**          # Arbitrary single Instr.
+41 ??       # Arbitrary Instr (size of 2 bytes) started with \x41 (push ANY_GPR)
+
+# This example will match the instruction snippet below from a trace:
+#	 55         push	rbp
+#	 48 89 e5   mov	rbp, rsp
+#	 41 57      push	r15
+#	 41 56      push	r14
 
 
-
-# The following formats are also accepted
-# 4889e5
-# \x48 \x89 \xe5
-# "4889e5"
-# "48 89 e5"
-# "\x48\x89\xe5"
+# The following formats are also accepted:
+#	 4889e5
+#	 \x48 \x89 \xe5
+#	 "4889e5"
+#	 "48 89 e5"
+#	 "\x48\x89\xe5"

@@ -48,28 +48,29 @@ bool print_memory   = false;
 bool print_register = false;
 uint32_t print_next = 0;
 
-// Start? End?
-size_t loop_starts = 1;
-int loop_ends = 0; // Default is 0 for printing till the end
-
-// Target memory address 
-uint64_t target_addr = (uint64_t) -1;
-
 // Structure
-typedef struct _circular_buffer_t {
-    char* buffer;
-    size_t head;
-    size_t size;
-} circular_buffer_t;
-typedef struct _list_node_t {
-    struct _list_node_t *succ;
+typedef struct _insn_rawbyte_node_t {
+    bool is_arbitrary;
+    uint16_t *bytes;
+    int size;  
+    struct _insn_rawbyte_node_t *prec, *succ;
+} insn_rawbyte_node_t;
+typedef struct _cache_linked_list_t {
+    insn_rawbyte_node_t *head, *tail;
+    size_t length;
+} cache_linked_list_t;
+typedef struct _matched_list_node_t {
+    struct _matched_list_node_t *succ;
     uint64_t addr;
     size_t cnt;
-} list_node_t;
-list_node_t *list_header = NULL;
+} matched_list_node_t;
 
 
-bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn, const bool is_search)
+bool print_filter(peekaboo_insn_t *insn, 
+                  size_t insn_idx, 
+                  const size_t num_insn, 
+                  const bool is_search, 
+                  const uint64_t target_addr)
 {
     /* Return true to print this instruction. Otherwise, skip this instruction printing. */
     bool rvalue;
@@ -122,36 +123,51 @@ bool print_filter(peekaboo_insn_t *insn, size_t insn_idx, const size_t num_insn,
    return rvalue;
 }
 
-int hexchar_to_uint8(uint8_t *output_uint8_ptr, const char input_char)
+int hexchar_to_uint16(uint16_t *output_uint16_ptr, const char input_char)
 {
     if (input_char >= '0' && input_char <= '9')
     {
-        *output_uint8_ptr = input_char - '0';
+        *output_uint16_ptr = input_char - '0';
         return 0;
     }
     if (input_char >= 'A' && input_char <= 'F')
     {
-        *output_uint8_ptr = input_char - 'A' + 10;
+        *output_uint16_ptr = input_char - 'A' + 10;
         return 0;
     }
     if (input_char >= 'a' && input_char <= 'f')
     {
-        *output_uint8_ptr = input_char - 'a' + 10;
+        *output_uint16_ptr = input_char - 'a' + 10;
         return 0;
     }
+    if (input_char == '*')
+    {
+        *output_uint16_ptr = 0x100;
+        return 0;
+    }
+    if (input_char == '?')
+    {
+        *output_uint16_ptr = 0x101;
+        return 0;
+    }
+
     return -1;
 }
 
 /* Covert hex string into uint8_t array*/
-int hex_string_to_uint8_arrary(uint8_t *uint8_array, const char *hex_string)
+int hex_string_to_uint16_arrary(uint16_t *uint16_array, const char *hex_string)
 {
     int size = 0;
     while(hex_string[0] && hex_string[1])
     {
-        uint8_t output[2];
-        if (hexchar_to_uint8(&output[0], hex_string[0])==0 && hexchar_to_uint8(&output[1], hex_string[1])==0)
+        // Arbitrary symbols must be in pairs
+        if (hex_string[0] == '?' || hex_string[1] == '?' || hex_string[0] == '*' || hex_string[1] == '*')
+            if (hex_string[0] != hex_string[1]) return -1;
+
+        uint16_t output[2];
+        if (hexchar_to_uint16(&output[0], hex_string[0])==0 && hexchar_to_uint16(&output[1], hex_string[1])==0)
         {
-            uint8_array[size++] = output[0] * 16 + output[1];
+            uint16_array[size++] = output[0] * 16 + output[1];
         }
         else return -1;
         hex_string += 2;
@@ -207,39 +223,82 @@ int disassemble_raw(const enum ARCH arch, const bool is_big_endian, uint8_t *inp
 }
 #endif
 
-void update_raw_byte_buffer(circular_buffer_t *raw_bytes_buffer_ptr, 
-                            char const *cur_insn_rawbytes, 
-                            const uint32_t cur_insn_size)
+void free_insn_rawbyte_node(insn_rawbyte_node_t *node_ptr)
 {
-    for (size_t idx = 0; idx < cur_insn_size; idx++)
+    if (node_ptr != NULL)
     {
-        raw_bytes_buffer_ptr->buffer[raw_bytes_buffer_ptr->head] = cur_insn_rawbytes[idx];
-        raw_bytes_buffer_ptr->head = (raw_bytes_buffer_ptr->head + 1) % raw_bytes_buffer_ptr->size;
+        if (node_ptr->bytes != NULL) free(node_ptr->bytes);
+        free(node_ptr);
     }
 }
 
-bool is_buffer_matched(circular_buffer_t const* raw_bytes_buffer_ptr, 
-                       char *target_buffer, 
-                       const uint32_t target_buffer_size)
+void update_raw_byte_buffer(cache_linked_list_t *instr_buffer, 
+                            char const *cur_insn_rawbytes, 
+                            const uint32_t instr_size,
+                            const size_t target_length)
 {
-    size_t cur_head = raw_bytes_buffer_ptr->head;
-    bool matched = true;
-
-    for (int64_t idx = target_buffer_size - 1; idx >= 0; idx--)
+    // Remove instr from head if buffer is full
+    if (instr_buffer->length >= target_length)
     {
-        if (cur_head == 0)
-            cur_head = raw_bytes_buffer_ptr->size - 1; 
-        else
-            cur_head--;
-        uint8_t byte_in_buffer = raw_bytes_buffer_ptr->buffer[cur_head] & 0xff;
-        uint8_t byte_in_target = target_buffer[idx] & 0xff;
-        if (byte_in_buffer != byte_in_target)
+        assert(instr_buffer->head != NULL);
+        assert(instr_buffer->head != instr_buffer->tail);
+        insn_rawbyte_node_t *new_head = instr_buffer->head->succ;
+        assert(new_head != NULL);
+        free_insn_rawbyte_node(instr_buffer->head);
+        instr_buffer->head = new_head;
+        instr_buffer->length -= 1;
+    }
+
+    // New instr
+    insn_rawbyte_node_t *new_node = malloc(sizeof(insn_rawbyte_node_t));
+    if (!new_node) PEEKABOO_DIE("Failed to malloc!");
+    new_node->is_arbitrary = false;
+    new_node->prec = instr_buffer->tail;
+    new_node->succ = NULL;
+    new_node->size = instr_size;
+    new_node->bytes = malloc(sizeof(uint16_t) * instr_size);
+    uint32_t idx;
+    for (idx=0; idx<instr_size; idx++)
+    {
+        new_node->bytes[idx] = cur_insn_rawbytes[idx] & 0xFF;
+    }
+
+    // Update buffer
+    if (instr_buffer->head == NULL) 
+    {
+        instr_buffer->head = new_node;
+    }
+    if (instr_buffer->tail != NULL) 
+    {
+        instr_buffer->tail->succ = new_node;
+    }
+    instr_buffer->tail = new_node;
+    instr_buffer->length += 1;
+}
+
+uint32_t is_buffer_matched(cache_linked_list_t const *raw_bytes_buffer, 
+                       cache_linked_list_t const *pattern)
+{
+    insn_rawbyte_node_t *target_node = raw_bytes_buffer->tail;
+    insn_rawbyte_node_t *pattern_node = pattern->tail;
+    uint32_t matched_bytes_num = 0;
+
+    if (raw_bytes_buffer->length < pattern->length) return 0;
+
+    uint32_t idx = pattern->length;
+    for (; idx>0; idx--, pattern_node = pattern_node->prec, target_node = target_node->prec)
+    {
+        matched_bytes_num += target_node->size;
+        if (pattern_node->is_arbitrary) continue;
+        if (pattern_node->size != target_node->size) return 0;
+        uint32_t byte_offset = 0;
+        for (; byte_offset < pattern_node->size; byte_offset++)
         {
-            matched = false;
-            break;
+            if (pattern_node->bytes[byte_offset] == 0x101*16+0x101) continue; // Matched "??"
+            if (pattern_node->bytes[byte_offset] != target_node->bytes[byte_offset]) return 0;
         }
     }
-    return matched;
+    return matched_bytes_num;
 }
 
 uint8_t digits;
@@ -337,73 +396,177 @@ uint64_t print_back(const int64_t unprinted_size,
     return rvalue;
 }
 
-int load_pattern(unsigned char **target_block_ptr, const char* pattern_file_path)
+int append2pattern_list(cache_linked_list_t *pattern_ptr, const uint8_t *buffer, const unsigned int buffer_size)
 {
+    // Empty buffer, directly return
+    if (buffer_size == 0) return 0;
+
+    insn_rawbyte_node_t *new_node = malloc(sizeof(insn_rawbyte_node_t));
+    if (!new_node) PEEKABOO_DIE("Failed to malloc.");
+    new_node->succ = NULL;
+    
+    if (pattern_ptr->head == NULL)
+    {
+        pattern_ptr->head = new_node;
+    }
+
+    // Update tail and length
+    insn_rawbyte_node_t *curr_tail_node = pattern_ptr->tail;
+    if (curr_tail_node != NULL)
+    {
+        curr_tail_node->succ = new_node;
+    }
+    new_node->prec = curr_tail_node;
+    pattern_ptr->tail = new_node;
+    pattern_ptr->length += 1;
+
+    new_node->bytes = malloc((buffer_size/2+1)*sizeof(uint16_t));
+    if(!new_node->bytes) PEEKABOO_DIE("Failed to malloc.");
+    new_node->size = hex_string_to_uint16_arrary(new_node->bytes, buffer);
+    if (new_node->size <= 0) return -1; 
+
+    // Find if abitrary
+    size_t idx;
+    new_node->is_arbitrary = false;
+    for (idx=0; idx<new_node->size; idx++)
+    {
+        if (new_node->bytes[idx] == 0x100*16+0x100) // Matched "**"
+        {
+            new_node->is_arbitrary = true;
+            new_node->size = 0;
+            free(new_node->bytes);
+            new_node->bytes = NULL;
+            break;
+        }
+    }
+    return 1;
+}
+
+void load_pattern(cache_linked_list_t *pattern_ptr, const char* pattern_file_path)
+{
+    // Init pattern
+    pattern_ptr->length = 0;
+    pattern_ptr->head = NULL;
+    pattern_ptr->tail = NULL;
+
     // Load pattern, if given.
-    char buffer[BUFFER_SIZE];
+    uint8_t buffer[33];
     unsigned int buffer_size = 0;
     FILE* file = fopen(pattern_file_path, "rb");
     if (!file) PEEKABOO_DIE("No such pattern file %s\n", pattern_file_path);
-    char c;
-    const char comment_symbol = '#';
+    uint8_t c;
+    uint32_t line_num = 0;
     bool line_is_commented = false;
     while (fread(&c, 1, 1, file) == 1) 
     {
-        if (c == comment_symbol) line_is_commented = true;
-        if (line_is_commented)
+        // Check if this is comment
+        if (c == '#') 
         {
-            if (c == '\n') line_is_commented = false;
+            line_is_commented = true;
             continue;
         }
+
+        // Check if this is '\n'
+        if (c == '\n')
+        {   
+            // Update line number 
+            line_num++;
+
+            // Reset commented
+            line_is_commented = false;
+
+            // Parse buffer
+            buffer[buffer_size] = 0x0;
+            if (append2pattern_list(pattern_ptr, buffer, buffer_size) < 0) PEEKABOO_DIE("Fail to parse input pattern at line %u", line_num);
+
+            // Reset buffer to load next instruction
+            buffer_size = 0;
+            continue;
+        } 
+
+        // Check if commented
+        if (line_is_commented) continue;
+
+        // Parse this char
         if (c < '0' || c > '9')
             if (c < 'a' || c > 'f')
                 if (c < 'A' || c > 'F')
-                {
-                    // this is not a hex char, ignore
-                    continue;
-                }
+                    if (c != '*' && c != '?') // Arbitrary matching
+                    {
+                        // this is not a hex char, or an arbitrary matching char
+                        continue;
+                    }
         buffer[buffer_size] = c;
         buffer_size++;
-        if (buffer_size >= BUFFER_SIZE) PEEKABOO_DIE("Pattern too large!");
+        if (buffer_size > 33) PEEKABOO_DIE("Pattern: Rawbytes are too long for one instruction!");
     }
-    buffer[buffer_size] = 0x0;
     fclose(file);
-    *target_block_ptr = malloc(buffer_size/2+1);
-    if (!*target_block_ptr) PEEKABOO_DIE("Malloc failed.");
-    int block_size = hex_string_to_uint8_arrary(*target_block_ptr, buffer);
-    if (block_size <= 0) PEEKABOO_DIE("Error when loading pattern from file.");
-    
-    return block_size;
 }
 
-void print_pattern(unsigned char* pattern, int block_size)
+void free_dulinked_list(cache_linked_list_t* pattern)
 {
-    printf("Search for the following snippet (%d bytes):\n", block_size);
-    #ifdef ASM_CAPSTONE
-        cs_insn *capstone_insn;
-        size_t count = cs_disasm(capstone_handler, pattern, block_size, 0x0, 0, &capstone_insn);
-        if (count > 0) 
+    if (pattern == NULL) return;
+    uint32_t idx;
+    insn_rawbyte_node_t *this_node = pattern->head;
+    for (idx=0; idx<pattern->length; idx++)
+    {
+        insn_rawbyte_node_t *next_node = this_node->succ;
+        free_insn_rawbyte_node(this_node);
+        this_node = next_node;
+    }
+}
+
+void print_pattern(const cache_linked_list_t* pattern)
+{
+    printf("Search for the following snippet (%lu instructions):\n", pattern->length);
+    uint32_t instr_id;
+    insn_rawbyte_node_t *this_node = pattern->head;
+    for (instr_id = 0; instr_id < pattern->length; instr_id++, this_node=this_node->succ)
+    {
+        uint32_t byte_offset;
+        bool has_arbitrary_byte = false;
+        assert(this_node!=NULL);
+        printf("\t");
+        if (this_node->is_arbitrary)
         {
-            size_t j;
-            for (j = 0; j < count; j++) 
+            printf("**                   \t[Any Instr.]\n");
+            continue;
+        }
+        for(byte_offset = 0; byte_offset < this_node->size; byte_offset++)
+        {
+            uint16_t byte_to_print = this_node->bytes[byte_offset];
+            if (byte_to_print == 0x101*16+0x101)
+            {
+                printf("?? ");
+                has_arbitrary_byte = true;
+                continue;
+            }
+            printf("%02hhx ", byte_to_print);
+        }
+        if (!has_arbitrary_byte)
+        {
+        #ifdef ASM_CAPSTONE
+            cs_insn *capstone_insn;
+            uint8_t *tmp_rawbytes = malloc(this_node->size);
+            if (!tmp_rawbytes) PEEKABOO_DIE("Failed to malloc");
+            uint32_t tmp_idx;
+            for (tmp_idx = 0; tmp_idx < this_node->size; tmp_idx++)
+            {
+                tmp_rawbytes[tmp_idx] = this_node->bytes[tmp_idx] & 0xFF;
+            }
+            size_t count = cs_disasm(capstone_handler, tmp_rawbytes, this_node->size, 0x0, 0, &capstone_insn);
+            free(tmp_rawbytes);
+            if (count > 0) 
             {
                 size_t k;
-                printf("\t");
-                for (k = 0; k < capstone_insn[j].size; k++)
-                    printf("%02hhx ", capstone_insn[j].bytes[k]);
-                for (; k < 8; k++) printf("   ");
-                printf("%s\t\t%s\n", capstone_insn[j].mnemonic, capstone_insn[j].op_str);
+                for (k = this_node->size; k < 8; k++) printf("   ");
+                printf("%s\t\t%s", capstone_insn[0].mnemonic, capstone_insn[00].op_str);
+                cs_free(capstone_insn, count);
             }
-            cs_free(capstone_insn, count);
+        #endif
         }
-
-    #else
-        for (size_t idx = 0; idx < block_size; idx++)
-        {
-            if (idx % 16 == 0) printf("\n\t");
-            printf("%02hhx ", pattern[idx]);
-        }
-    #endif
+        printf("\n");
+    }
 }
 
 void print_usage(const char* program_name)
@@ -419,12 +582,12 @@ void print_usage(const char* program_name)
     fprintf(stderr, "  -h               \tPrint this help.\n");
 }
 
-void append2list(list_node_t **list_header, const uint64_t addr)
+void append2macthed_list(matched_list_node_t **list_header, const uint64_t addr)
 {
 
     if (*list_header == NULL)
     {
-        *list_header = malloc(sizeof(list_node_t));
+        *list_header = malloc(sizeof(matched_list_node_t));
         if (!*list_header) PEEKABOO_DIE("Malloc failed.");
         (*list_header)->addr = addr;
         (*list_header)->cnt = 1;
@@ -432,7 +595,7 @@ void append2list(list_node_t **list_header, const uint64_t addr)
     }
     else
     {
-        list_node_t *prev_node, *node = *list_header;
+        matched_list_node_t *prev_node, *node = *list_header;
         while (node)
         {
             if (node->addr == addr)
@@ -445,7 +608,7 @@ void append2list(list_node_t **list_header, const uint64_t addr)
         }
         if (node == NULL)
         {
-            node = malloc(sizeof(list_node_t));
+            node = malloc(sizeof(matched_list_node_t));
             if (!node) PEEKABOO_DIE("Malloc failed.");
             node->addr = addr;
             node->cnt = 1;
@@ -458,9 +621,12 @@ void append2list(list_node_t **list_header, const uint64_t addr)
 int main(int argc, char *argv[])
 {
     // Argument parsing
+    int loop_starts = 1;
+    int loop_ends = 0; // Default is 0 for printing till the end
     int opt;
     char *pattern_file_path;
     bool is_search = false;
+    uint64_t target_addr = (uint64_t) -1; // Target memory address
     while ((opt = getopt(argc, argv, "hrms:p:e:a:")) != -1) {
         switch (opt) {
         case 'r':
@@ -512,10 +678,12 @@ int main(int argc, char *argv[])
     if (target_addr != (uint64_t) -1) printf("Search for memory access @0x%lx\n", target_addr);
 
     // Load and Print search pattern
-    int block_size = 0;
-    unsigned char* target_block = NULL;
-    if (is_search) block_size = load_pattern(&target_block, pattern_file_path);
-    if (block_size) print_pattern(target_block, block_size);
+    cache_linked_list_t pattern;
+    pattern.length = 0;
+    pattern.head = NULL;
+    pattern.tail = NULL;
+    if (is_search) load_pattern(&pattern, pattern_file_path);
+    if (pattern.length) print_pattern(&pattern);
 
     // Load trace
     char *trace_path = argv[argc - 1];
@@ -527,42 +695,44 @@ int main(int argc, char *argv[])
     const size_t num_insn = get_num_insn(peekaboo_trace_ptr);
     digits = (uint8_t) log10(num_insn) + 2;
 
-    // Prepare circular buffer for pattern searching
-    circular_buffer_t raw_bytes_buffer;
-    raw_bytes_buffer.head = 0;
-    raw_bytes_buffer.size = (block_size > 256) ? block_size : 256;  // Fast circular buffer with size 256
-    raw_bytes_buffer.buffer = malloc(raw_bytes_buffer.size);
-    if (raw_bytes_buffer.buffer == NULL) PEEKABOO_DIE("Fail to malloc circular buffer.");
+    // Prepare buffer for pattern searching
+    cache_linked_list_t instr_buffer;
+    instr_buffer.length = 0;
+    instr_buffer.head = NULL;
+    instr_buffer.tail = NULL;
+
     uint64_t num_found_block = 0;
+    matched_list_node_t *matched_list_header = NULL;
 
     // We print instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
     const size_t _loop_ends = (loop_ends) ? loop_ends : num_insn;
-    printf("Range: from %ld to %ld (%ld in total)\n", loop_starts, _loop_ends, num_insn);
+    printf("Range: from %d to %ld (%ld in total)\n", loop_starts, _loop_ends, num_insn);
     for (size_t insn_idx=loop_starts; insn_idx<=_loop_ends; insn_idx++)
     {
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
         
         // Pattern search
-        if (block_size)
+        if (pattern.length)
         {
-            update_raw_byte_buffer(&raw_bytes_buffer, insn->rawbytes, insn->size);
-            if (is_buffer_matched(&raw_bytes_buffer, target_block, block_size))
+            update_raw_byte_buffer(&instr_buffer, insn->rawbytes, insn->size, pattern.length);
+            uint32_t matched_bytes_num = is_buffer_matched(&instr_buffer, &pattern);
+            if (matched_bytes_num)
             {
                 num_found_block ++;
                 print_next = PRINT_NEXT;
                 if (num_found_block) printf("\n");
                 printf("[Target block %lu] ends at [%lu]0x%"PRIx64":\n", num_found_block, insn_idx, insn->addr);
-                print_back(block_size, peekaboo_trace_ptr, insn_idx);
-                append2list(&list_header, insn->addr);
+                print_back(matched_bytes_num, peekaboo_trace_ptr, insn_idx);
+                append2macthed_list(&matched_list_header, insn->addr);
                 free_peekaboo_insn(insn);
                 continue;
             }
         }
 
         // Call print_filter() to decide what should be printed
-        if (!print_filter(insn, insn_idx, num_insn, is_search))
+        if (!print_filter(insn, insn_idx, num_insn, is_search, target_addr))
         {
             free_peekaboo_insn(insn);
             continue;
@@ -576,17 +746,17 @@ int main(int argc, char *argv[])
     }
 
     // Print pattern search summary and free linked list
-    if (is_search)
+    if (pattern.length)
     {
         printf("%lu code snippet(s) matched with the given pattern", num_found_block);
         if (num_found_block)
         {
             printf(":\n");
-            list_node_t *node = list_header;
+            matched_list_node_t *node = matched_list_header;
             while (node != NULL)
             {
                 printf("  Found pattern at 0x%lx for %ld time(s)\n", node->addr, node->cnt);
-                list_node_t *this_node = node;
+                matched_list_node_t *this_node = node;
                 node = node->succ;
                 free(this_node);
             }
@@ -594,10 +764,13 @@ int main(int argc, char *argv[])
     }
 
 #ifdef ASM_CAPSTONE
-	    cs_close(&capstone_handler);
+	cs_close(&capstone_handler);
 #endif
-    if (target_block) free(target_block);
-    free(raw_bytes_buffer.buffer);
+    if (pattern.length)
+    {
+        free_dulinked_list(&pattern);
+        free_dulinked_list(&instr_buffer);
+    }
     free_peekaboo_trace(peekaboo_trace_ptr);
     
     return 0;

@@ -385,6 +385,7 @@ void free_peekaboo_trace(peekaboo_trace_t *trace_ptr)
 	fclose(trace_ptr->regfile);
 	fclose(trace_ptr->memfile);
 	fclose(trace_ptr->memrefs);
+	if (trace_ptr->memrefs_offsets)	fclose(trace_ptr->memrefs_offsets);
 	free(trace_ptr->internal->bytes_map_buf);
 	free(trace_ptr->internal);
 	free(trace_ptr);
