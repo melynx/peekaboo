@@ -366,8 +366,9 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
             printf(insn->mem[mem_idx].status ? "Memory Write: " : "Memory Read: ");
             printf("%d bytes @ 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr);
 
-            // Assert fails at this line? Delete memrefs_offsets in trace folder and try again.
-            assert(insn->mem[mem_idx].status==0 || insn->mem[mem_idx].status==1);
+            // Memory trace broken checker
+            if (!(insn->mem[mem_idx].status==0 || insn->mem[mem_idx].status==1)) 
+                PEEKABOO_DIE("Abort! Broken memrefs_offsets. Remove memrefs_offsets in trace folder and try again.");
         }
     }
 

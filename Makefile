@@ -25,11 +25,13 @@ DIR_PEEKABOO := $(addprefix $(PROJ_HOME)/,libpeekaboo)
 
 # Check if have capstone
 ifneq (, $(shell which dpkg))
-HAS_CAPSTONE_DEV := $(shell dpkg -s libcapstone-dev | $(GREP) -c -E "Version: ([4-9])")
+HAS_CAPSTONE_DEV := $(shell dpkg -s libcapstone-dev | $(GREP) -c -E "Version: ([3-9])")
+else
+HAS_CAPSTONE_DEV := 0
 endif
 
 
-ifneq (, $(HAS_CAPSTONE_DEV))
+ifneq (0, $(HAS_CAPSTONE_DEV))
 	# Disasm with Capstone
 	CFLAGS += -DASM_CAPSTONE
 	LDLIBS += -lcapstone
@@ -80,13 +82,13 @@ all: $(PROG) | binutils_warning
 debug: CFLAGS += -DDEBUG -g 
 debug: all
 
-read_trace: read_trace.o $(LDLIBS) 
+read_trace: read_trace.o $(LDLIB_PEEKABOO) 
 ifeq ($(HAVE_LIBPEEKABOO_SO), 0)
 	@# Cannot find peekaboo installed. Static link!
 	$(CC) -o $@ $(strip $(CFLAGS) $< $(patsubst -lpeekaboo,$(DIR_PEEKABOO)/libpeekaboo.a,$(LDLIBS)))
 else
 	@# Dynamic link if libpeekaboo has been installed
-	$(CC) -o $@ $(strip $(CFLAGS) $^)
+	$(CC) -o $@ $(strip $(CFLAGS) $< $(LDLIBS))
 endif
 
 %.o: %.c
