@@ -238,7 +238,7 @@ void update_raw_byte_buffer(cache_linked_list_t *instr_buffer,
                             const size_t target_length)
 {
     // Remove instr from head if buffer is full
-    if (instr_buffer->length >= target_length)
+    if (instr_buffer->length > target_length)
     {
         assert(instr_buffer->head != NULL);
         assert(instr_buffer->head != instr_buffer->tail);
