@@ -576,7 +576,7 @@ void print_usage(const char* program_name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -r               \tPrint register values.\n");
     fprintf(stderr, "  -m               \tPrint memory values.\n");
-    fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id.\n");
+    fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id. Below zero for reversed order.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
     fprintf(stderr, "  -a <memory addr> \tSearch for all instructions accessing given memory address.\n");
     fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace.\n");
@@ -642,11 +642,11 @@ int main(int argc, char *argv[])
             break;
         case 's':
             loop_starts = atoi(optarg);
-            if (loop_starts <= 0) PEEKABOO_DIE("Starting point must be greater than 0");
+            if (loop_starts == 0) PEEKABOO_DIE("Starting point could not be 0. Traces always start at 1.\n");
             break;
         case 'e':
             loop_ends = atoi(optarg);
-            if (loop_ends <= 0) PEEKABOO_DIE("End point must be greater than 0");
+            if (loop_ends <= 0) PEEKABOO_DIE("End point must be greater than 0\n");
             break;
         case 'a':
             if (optarg[0] == '0' && optarg[1] == 'x')
@@ -708,8 +708,9 @@ int main(int argc, char *argv[])
     // We print instructions sequentially. 
     // Please note the first instruction's index is 1, instead of 0.
     const size_t _loop_ends = (loop_ends) ? loop_ends : num_insn;
-    printf("Range: from %d to %ld (%ld in total)\n", loop_starts, _loop_ends, num_insn);
-    for (size_t insn_idx=loop_starts; insn_idx<=_loop_ends; insn_idx++)
+    const size_t _loop_starts = (loop_starts < 0) ? (_loop_ends + loop_starts + 1) : loop_starts;
+    printf("Range: from %lu to %lu (%lu in total)\n", _loop_starts, _loop_ends, num_insn);
+    for (size_t insn_idx=_loop_starts; insn_idx<=_loop_ends; insn_idx++)
     {
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
