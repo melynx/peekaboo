@@ -343,8 +343,19 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
 
         if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
         {
+            size_t trace_length = get_num_insn(peekaboo_trace_ptr);
+            size_t next_insn_idx = insn_idx + 1;
             const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
-            printf(" %lu", regfile_ptr->gpr.reg_rax);
+            printf("%lu; rvalue=", regfile_ptr->gpr.reg_rax);
+            if (next_insn_idx > trace_length)
+                printf("NA");
+            else
+            {
+                peekaboo_insn_t *next_insn = get_peekaboo_insn(next_insn_idx, peekaboo_trace_ptr);
+                regfile_ptr = (regfile_amd64_t *) next_insn->regfile;
+                printf("0x%lx", regfile_ptr->gpr.reg_rax);
+                free_peekaboo_insn(next_insn);
+            }
         }
     }
     #endif
@@ -359,10 +370,22 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
         printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
         cs_free(capstone_insn, count);
+
         if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
         {
+            size_t trace_length = get_num_insn(peekaboo_trace_ptr);
+            size_t next_insn_idx = insn_idx + 1;
             const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
-            printf(" %lu", regfile_ptr->gpr.reg_rax);
+            printf("%lu; rvalue=", regfile_ptr->gpr.reg_rax);
+            if (next_insn_idx > trace_length)
+                printf("NA");
+            else
+            {
+                peekaboo_insn_t *next_insn = get_peekaboo_insn(next_insn_idx, peekaboo_trace_ptr);
+                regfile_ptr = (regfile_amd64_t *) next_insn->regfile;
+                printf("0x%lx", regfile_ptr->gpr.reg_rax);
+                free_peekaboo_insn(next_insn);
+            }
         }
     }
     #endif
@@ -587,7 +610,7 @@ void print_usage(const char* program_name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -r               \tPrint register values.\n");
     fprintf(stderr, "  -m               \tPrint memory values.\n");
-    fprintf(stderr, "  -c               \tPrint syscalls. Not compatible with -p.\n");
+    fprintf(stderr, "  -y               \tPrint syscalls. Not compatible with -p.\n");
     fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id. Below zero for reversed order.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
     fprintf(stderr, "  -a <memory addr> \tSearch for all instructions accessing given memory address.\n");
@@ -641,7 +664,7 @@ int main(int argc, char *argv[])
     bool is_search = false;
     bool print_syscall_only = false;
     uint64_t target_addr = (uint64_t) -1; // Target memory address
-    while ((opt = getopt(argc, argv, "hrms:p:e:a:c")) != -1) {
+    while ((opt = getopt(argc, argv, "hrms:p:e:a:y")) != -1) {
         switch (opt) {
         case 'r':
             print_register = true;
@@ -667,7 +690,7 @@ int main(int argc, char *argv[])
             else
                 target_addr = strtol(optarg, NULL, 16);
             break;
-        case 'c':
+        case 'y':
             print_syscall_only = true;
             break;
         case 'h':
