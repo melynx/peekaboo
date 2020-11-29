@@ -339,7 +339,13 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
 
         // Disasmble the instruction
         int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
-        if(rvalue != 0) exit(1);
+        if(rvalue != 0) PEEKABOO_DIE("Libopcodes disasm error!\n");
+
+        if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
+        {
+            const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
+            printf(" %lu", regfile_ptr->gpr.reg_rax);
+        }
     }
     #endif
     #ifdef ASM_CAPSTONE
@@ -353,6 +359,11 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
         printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
         cs_free(capstone_insn, count);
+        if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
+        {
+            const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
+            printf(" %lu", regfile_ptr->gpr.reg_rax);
+        }
     }
     #endif
     printf("\n");
@@ -576,10 +587,11 @@ void print_usage(const char* program_name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -r               \tPrint register values.\n");
     fprintf(stderr, "  -m               \tPrint memory values.\n");
+    fprintf(stderr, "  -c               \tPrint syscalls. Not compatible with -p.\n");
     fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id. Below zero for reversed order.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
     fprintf(stderr, "  -a <memory addr> \tSearch for all instructions accessing given memory address.\n");
-    fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace.\n");
+    fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace. See pattern.txt for samples. Not compatible with -c.\n");
     fprintf(stderr, "  -h               \tPrint this help.\n");
 }
 
@@ -627,8 +639,9 @@ int main(int argc, char *argv[])
     int opt;
     char *pattern_file_path;
     bool is_search = false;
+    bool print_syscall_only = false;
     uint64_t target_addr = (uint64_t) -1; // Target memory address
-    while ((opt = getopt(argc, argv, "hrms:p:e:a:")) != -1) {
+    while ((opt = getopt(argc, argv, "hrms:p:e:a:c")) != -1) {
         switch (opt) {
         case 'r':
             print_register = true;
@@ -653,6 +666,9 @@ int main(int argc, char *argv[])
                 target_addr = strtol(&optarg[2], NULL, 16);
             else
                 target_addr = strtol(optarg, NULL, 16);
+            break;
+        case 'c':
+            print_syscall_only = true;
             break;
         case 'h':
             print_usage(argv[0]);
@@ -715,6 +731,16 @@ int main(int argc, char *argv[])
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
         
+        if (print_syscall_only)
+        {
+            if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
+            {
+                print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false);
+            }
+            free_peekaboo_insn(insn);
+            continue;
+        }
+
         // Pattern search
         if (pattern.length)
         {
