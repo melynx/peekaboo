@@ -55,41 +55,41 @@ Say, you want to run with command ls in 64-bit mode:
 You should get a folder in the current directory like this:
 ```
 ls-31401
-|----insn.bytemap
-|----process_tree.txt
-|----31401
-      |----insn.trace
-      |----memfile
-      |----memrefs
-      |----metafile
-      |----proc_map
-      |----regfile
+├────insn.bytemap
+├────process_tree.txt
+└────31401
+      ├────insn.trace
+      ├────memfile
+      ├────memrefs
+      ├────metafile
+      ├────proc_map
+      └────regfile
 ```
 If the application forked during tracing, there will be other sub folders. The structure will be like this (child PID is `32109`):
 ```
 fork-32105
-|----insn.bytemap
-|----process_tree.txt
-|----32105
-|     |----insn.trace
-|     |----memfile
-|     |----memrefs
-|     |----metafile
-|     |----proc_map
-|     |----regfile
-|----32109
-      |----insn.trace
-      |----memfile
-      |----memrefs
-      |----metafile
-      |----proc_map
-      |----regfile
+├────insn.bytemap
+├────process_tree.txt
+├────32105
+|     ├────insn.trace
+|     ├────memfile
+|     ├────memrefs
+|     ├────metafile
+|     ├────proc_map
+|     └────regfile
+└────32109
+      ├────insn.trace
+      ├────memfile
+      ├────memrefs
+      ├────metafile
+      ├────proc_map
+      └────regfile
 ```
 ## Trace Reader (C/C++)
 ### Dependency
 (Optional) For disassembly function
 - (Recommended) `libcapstone-dev`
-- `binutils-dev`>=2.29
+- (Alternative) `binutils-dev`>=2.29
 
 ### How to build
 In the project home directory:
@@ -100,13 +100,14 @@ make
 ```
 Usage: ./read_trace [Options] path_to_trace_dir
 Options:
-  -r               	Print register values.
-  -m               	Print memory values.
-  -s <instr id>    	Print trace starting from the given id.
-  -e <instr id>    	Print trace till the given id.
-  -a <memory addr> 	Search for all instructions accessing given memory address.
-  -p <pattern file>	Search for instruction patterns in trace.
-  -h               	Print this help.
+  -r                    Print register values.
+  -m                    Print memory values.
+  -y                    Print syscalls. Not compatible with -p.
+  -s <instr id>         Print trace starting from the given id. Below zero for reversed order.
+  -e <instr id>         Print trace till the given id.
+  -a <memory addr>      Search for all instructions accessing given memory address.
+  -p <pattern file>     Search for instruction patterns in trace. See pattern.txt for samples. Not compatible with -c.
+  -h                    Print this help.
 ```
 #### Example 1: Print all instructions inside the trace
 ```
@@ -136,8 +137,13 @@ Then use `pattern.txt` to search:
 ```
 ./read_trace -p pattern.txt ./ls-31401/31401
 ```
+We have created a `pattern.txt` as an example.
 #### Example 5: Search for instructions which accessed a specific address
 If you want to get all instructions that read/write `0x7fbfc3c3ccde`:
 ```
 ./read_trace -a 0x7fbfc3c3ccde ./ls-31401/31401
+```
+#### Example 6: Show all system calls inside the trace
+```
+./read_trace -c ./ls-31401/31401
 ```

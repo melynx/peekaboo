@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <unistd.h>
+#include <string.h>
 
 
 #include "libpeekaboo/libpeekaboo.h"
@@ -70,7 +71,8 @@ bool print_filter(peekaboo_insn_t *insn,
                   size_t insn_idx, 
                   const size_t num_insn, 
                   const bool is_search, 
-                  const uint64_t target_addr)
+                  const uint64_t target_addr,
+                  const uint32_t target_addr_size)
 {
     /* Return true to print this instruction. Otherwise, skip this instruction printing. */
     bool rvalue;
@@ -88,9 +90,19 @@ bool print_filter(peekaboo_insn_t *insn,
         {
             for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
             {
-                if (target_addr >= insn->mem[mem_idx].addr 
-                    &&
-                    target_addr < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
+                if (
+                    (
+                        (target_addr >= insn->mem[mem_idx].addr) 
+                        && 
+                        (target_addr < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
+                    )
+                    ||
+                    (
+                        (target_addr+target_addr_size-1 < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
+                        &&
+                        (target_addr+target_addr_size-1 >= insn->mem[mem_idx].addr)
+                    )
+                   )
                 {
                     rvalue = true;
                     break;
@@ -613,7 +625,7 @@ void print_usage(const char* program_name)
     fprintf(stderr, "  -y               \tPrint syscalls. Not compatible with -p.\n");
     fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id. Below zero for reversed order.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
-    fprintf(stderr, "  -a <memory addr> \tSearch for all instructions accessing given memory address.\n");
+    fprintf(stderr, "  -a <addr>[,size] \tSearch for all accesses to given memory address. Search accesses to buffer when size is given.\n");
     fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace. See pattern.txt for samples. Not compatible with -c.\n");
     fprintf(stderr, "  -h               \tPrint this help.\n");
 }
@@ -664,6 +676,9 @@ int main(int argc, char *argv[])
     bool is_search = false;
     bool print_syscall_only = false;
     uint64_t target_addr = (uint64_t) -1; // Target memory address
+    uint32_t target_addr_size = 1;
+    bool target_addr_size_hex = false;
+    char *comma_pos, *size_ptr;
     while ((opt = getopt(argc, argv, "hrms:p:e:a:y")) != -1) {
         switch (opt) {
         case 'r':
@@ -685,10 +700,25 @@ int main(int argc, char *argv[])
             if (loop_ends <= 0) PEEKABOO_DIE("End point must be greater than 0\n");
             break;
         case 'a':
+            comma_pos = strrchr(optarg, ',');
             if (optarg[0] == '0' && optarg[1] == 'x')
-                target_addr = strtol(&optarg[2], NULL, 16);
+                target_addr = strtol(optarg+2, NULL, 16);
             else
                 target_addr = strtol(optarg, NULL, 16);
+            if (comma_pos != NULL)
+            {
+                size_ptr = comma_pos + 1;
+                if (size_ptr[0] == '0' && size_ptr[1] == 'x')
+                {
+                    target_addr_size = strtol(size_ptr+2, NULL, 16);
+                    target_addr_size_hex = true;
+                }
+                else
+                {
+                    target_addr_size = strtol(size_ptr, NULL, 10);
+                    target_addr_size_hex = false;
+                }
+            }
             break;
         case 'y':
             print_syscall_only = true;
@@ -703,7 +733,7 @@ int main(int argc, char *argv[])
     if (optind >= argc) 
     {
         print_usage(argv[0]);
-        PEEKABOO_DIE("Missing argument: Trace path expected!\n");
+        PEEKABOO_DIE("\nMissing argument: Trace path at the end expected.\n");
     }
 
     // Init capstone
@@ -715,7 +745,20 @@ int main(int argc, char *argv[])
     fprintf(stderr, "libpeekaboo version: %d\n", LIBPEEKABOO_VER);
 
     // Print info for memory access search
-    if (target_addr != (uint64_t) -1) printf("Search for memory access @0x%lx\n", target_addr);
+    if (target_addr != (uint64_t) -1)
+    {
+        if (target_addr_size > 1)  
+        {
+            if (target_addr_size_hex)
+                printf("Search for memory access to buffer 0x%lx with size 0x%x bytes.\n", target_addr, target_addr_size);
+            else
+                printf("Search for memory access to buffer 0x%lx with size %u bytes.\n", target_addr, target_addr_size);
+        }
+        else
+        {
+            printf("Search for memory access @0x%lx.\n", target_addr);
+        }
+    }
 
     // Load and Print search pattern
     cache_linked_list_t pattern;
@@ -783,7 +826,7 @@ int main(int argc, char *argv[])
         }
 
         // Call print_filter() to decide what should be printed
-        if (!print_filter(insn, insn_idx, num_insn, is_search, target_addr))
+        if (!print_filter(insn, insn_idx, num_insn, is_search, target_addr, target_addr_size))
         {
             free_peekaboo_insn(insn);
             continue;
