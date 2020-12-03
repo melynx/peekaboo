@@ -90,17 +90,15 @@ bool print_filter(peekaboo_insn_t *insn,
         {
             for (uint32_t mem_idx = 0; mem_idx < insn->num_mem; mem_idx++)
             {
+                // We don't print zero-size memory accesses, i.e. lea instr
+                if (insn->mem[mem_idx].size == 0) continue;
+
+                // Exclude those don't have overlaps
                 if (
-                    (
-                        (target_addr >= insn->mem[mem_idx].addr) 
-                        && 
-                        (target_addr < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
-                    )
-                    ||
-                    (
-                        (target_addr+target_addr_size-1 < insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
-                        &&
-                        (target_addr+target_addr_size-1 >= insn->mem[mem_idx].addr)
+                    !( 
+                        (target_addr > insn->mem[mem_idx].addr + insn->mem[mem_idx].size)
+                        ||
+                        (target_addr+target_addr_size-1 < insn->mem[mem_idx].addr)
                     )
                    )
                 {
@@ -625,7 +623,7 @@ void print_usage(const char* program_name)
     fprintf(stderr, "  -y               \tPrint syscalls. Not compatible with -p.\n");
     fprintf(stderr, "  -s <instr id>    \tPrint trace starting from the given id. Below zero for reversed order.\n");
     fprintf(stderr, "  -e <instr id>    \tPrint trace till the given id.\n");
-    fprintf(stderr, "  -a <addr>[,size] \tSearch for all accesses to given memory address. Search accesses to buffer when size is given.\n");
+    fprintf(stderr, "  -a <addr>[,size] \tSearch for all accesses to given memory address, for accesses to buffer when size is given.\n");
     fprintf(stderr, "  -p <pattern file>\tSearch for instruction patterns in trace. See pattern.txt for samples. Not compatible with -c.\n");
     fprintf(stderr, "  -h               \tPrint this help.\n");
 }
@@ -750,7 +748,7 @@ int main(int argc, char *argv[])
         if (target_addr_size > 1)  
         {
             printf("Search for memory access to buffer at 0x%lx with size of ",target_addr);
-            if (target_addr_size_hex) // Buffer size is taken 
+            if (target_addr_size_hex) // Buffer size is taken in hex or dec
                 printf("0x%x bytes.\n", target_addr_size);
             else
                 printf("%u bytes.\n", target_addr_size);
