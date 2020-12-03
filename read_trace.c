@@ -749,10 +749,11 @@ int main(int argc, char *argv[])
     {
         if (target_addr_size > 1)  
         {
-            if (target_addr_size_hex)
-                printf("Search for memory access to buffer 0x%lx with size 0x%x bytes.\n", target_addr, target_addr_size);
+            printf("Search for memory access to buffer at 0x%lx with size of ",target_addr);
+            if (target_addr_size_hex) // Buffer size is taken 
+                printf("0x%x bytes.\n", target_addr_size);
             else
-                printf("Search for memory access to buffer 0x%lx with size %u bytes.\n", target_addr, target_addr_size);
+                printf("%u bytes.\n", target_addr_size);
         }
         else
         {
