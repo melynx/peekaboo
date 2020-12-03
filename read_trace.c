@@ -666,17 +666,24 @@ void append2macthed_list(matched_list_node_t **list_header, const uint64_t addr)
 
 int main(int argc, char *argv[])
 {
+    // Init capstone
+#ifdef ASM_CAPSTONE
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handler) != CS_ERR_OK) PEEKABOO_DIE("Capstone init error.");
+#endif
+
+    int loop_starts = 1;                    // Default is 1 for printing from beginning
+    int loop_ends = 0;                      // Default is 0 for printing till the end
+    char *pattern_file_path;                // Path to the pattern file for pattern search mode
+    bool is_search = false;                 // Pattern search mode
+    bool print_syscall_only = false;        // Strace mode 
+    uint64_t target_addr = (uint64_t) -1;   // Target memory address for memory access search mode
+    uint32_t target_addr_size = 1;          // Buffer size for memory access search mode. By default only check 1 byte
+    bool target_addr_size_hex = false;      // Does user type-in buffer size in hex? For memory access search mode
+    char *comma_pos, *size_ptr;             // Temp pointers for arg parsing. For memory access search mode
+    uint64_t printed_instr_num = 0;         // Counter for how many instr have been printed for non-pattern-search modes
+
     // Argument parsing
-    int loop_starts = 1;
-    int loop_ends = 0; // Default is 0 for printing till the end
     int opt;
-    char *pattern_file_path;
-    bool is_search = false;
-    bool print_syscall_only = false;
-    uint64_t target_addr = (uint64_t) -1; // Target memory address
-    uint32_t target_addr_size = 1;
-    bool target_addr_size_hex = false;
-    char *comma_pos, *size_ptr;
     while ((opt = getopt(argc, argv, "hrms:p:e:a:y")) != -1) {
         switch (opt) {
         case 'r':
@@ -727,17 +734,12 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    // Check mandatory argument
+    // Check mandatory argument, path to a trace folder
     if (optind >= argc) 
     {
         print_usage(argv[0]);
         PEEKABOO_DIE("\nMissing argument: Trace path at the end expected.\n");
     }
-
-    // Init capstone
-#ifdef ASM_CAPSTONE
-    if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handler) != CS_ERR_OK) PEEKABOO_DIE("Capstone init error.");
-#endif
 
     // Print current libpeekaboo version
     fprintf(stderr, "libpeekaboo version: %d\n", LIBPEEKABOO_VER);
@@ -759,14 +761,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Load and Print search pattern
-    cache_linked_list_t pattern;
-    pattern.length = 0;
-    pattern.head = NULL;
-    pattern.tail = NULL;
-    if (is_search) load_pattern(&pattern, pattern_file_path);
-    if (pattern.length) print_pattern(&pattern);
-
     // Load trace
     char *trace_path = argv[argc - 1];
     peekaboo_trace_t *peekaboo_trace_ptr = malloc(sizeof(peekaboo_trace_t));
@@ -777,12 +771,19 @@ int main(int argc, char *argv[])
     const size_t num_insn = get_num_insn(peekaboo_trace_ptr);
     digits = (uint8_t) log10(num_insn) + 2;
 
+    // Load and Print search pattern
+    cache_linked_list_t pattern;
+    pattern.length = 0;
+    pattern.head = NULL;
+    pattern.tail = NULL;
+    if (is_search) load_pattern(&pattern, pattern_file_path);
+    if (pattern.length) print_pattern(&pattern);
+
     // Prepare buffer for pattern searching
     cache_linked_list_t instr_buffer;
     instr_buffer.length = 0;
     instr_buffer.head = NULL;
     instr_buffer.tail = NULL;
-
     uint64_t num_found_block = 0;
     matched_list_node_t *matched_list_header = NULL;
 
@@ -796,6 +797,7 @@ int main(int argc, char *argv[])
         // Get instruction ptr by instruction index
         peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
         
+        // strace mode
         if (print_syscall_only)
         {
             if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
@@ -826,10 +828,17 @@ int main(int argc, char *argv[])
 
         // Call print_filter() to decide what should be printed
         if (!print_filter(insn, insn_idx, num_insn, is_search, target_addr, target_addr_size))
-        {
+        {   
+            // We are NOT going to print this instruction. Free and skip!
             free_peekaboo_insn(insn);
             continue;
         }
+        else
+        {   
+            // We are going to print this instruction.
+            printed_instr_num++;
+        }
+        
 
         // Body of print
         print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false);
@@ -838,9 +847,10 @@ int main(int argc, char *argv[])
         free_peekaboo_insn(insn);
     }
 
-    // Print pattern search summary and free linked list
+    
     if (pattern.length)
-    {
+    {   
+        // Print pattern search summary and free linked list
         printf("%lu code snippet(s) matched with the given pattern", num_found_block);
         if (num_found_block)
         {
@@ -855,6 +865,12 @@ int main(int argc, char *argv[])
             }
         }
     }
+    else
+    {   
+        // Print a total info for non-pattern modes
+        printf("End of printing. Totol printed instructions: %lu\n", printed_instr_num);
+    }
+    
 
 #ifdef ASM_CAPSTONE
 	cs_close(&capstone_handler);
