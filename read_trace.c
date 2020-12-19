@@ -312,6 +312,7 @@ uint32_t is_buffer_matched(cache_linked_list_t const *raw_bytes_buffer,
 }
 
 uint8_t digits;
+uint64_t read_bytes, write_bytes;
 void print_peekaboo_insn(peekaboo_insn_t *insn, 
                          peekaboo_trace_t *peekaboo_trace_ptr, 
                          const size_t insn_idx,
@@ -408,6 +409,10 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         {
             printf("\t");
             printf(insn->mem[mem_idx].status ? "Memory Write: " : "Memory Read: ");
+            if (insn->mem[mem_idx].status) 
+                write_bytes+=insn->mem[mem_idx].size; 
+            else
+                read_bytes+=insn->mem[mem_idx].size; 
             printf("%d bytes @ 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr);
 
             // Memory trace broken checker
@@ -670,7 +675,8 @@ int main(int argc, char *argv[])
 #ifdef ASM_CAPSTONE
     if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handler) != CS_ERR_OK) PEEKABOO_DIE("Capstone init error.");
 #endif
-
+    write_bytes = 0;
+    read_bytes = 0;
     int loop_starts = 1;                    // Default is 1 for printing from beginning
     int loop_ends = 0;                      // Default is 0 for printing till the end
     char *pattern_file_path;                // Path to the pattern file for pattern search mode
@@ -868,7 +874,7 @@ int main(int argc, char *argv[])
     else
     {   
         // Print a total info for non-pattern modes
-        printf("End of printing. Totol printed instructions: %lu\n", printed_instr_num);
+        printf("End of printing. Totol printed instructions: %lu; Read bytes: %lu, Write bytes:%lu\n", printed_instr_num, read_bytes, write_bytes);
     }
     
 

@@ -198,7 +198,7 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 		uint64_t base_offset = 0;
 
 		/* KH: This is a ad-hoc patch to fix the bug in peekaboo_dr.
-		 * When the application process forks, there is some residue
+		 * When the application process forks, there are some residues
 		 * in memfile buffer that can't be cleaned up.
 		 * Thus, When read those traces, we need to find the real starting
 		 * point of the memfile. We use base_offset to store it.
@@ -259,7 +259,11 @@ void load_memrefs_offsets(char *dir_path, peekaboo_trace_t *trace)
 				if (buffer[x].length)
 				{
 					write_buffer[x] = offset;
-					offset += buffer[x].length * sizeof(memfile_t);
+					if (trace->internal->version < 3)
+						// Memfiles in old versions are different
+						offset += buffer[x].length * sizeof(uint64_t) * 3;
+					else
+						offset += buffer[x].length * sizeof(memfile_t);
 				}
 				else
 				{
@@ -444,7 +448,12 @@ peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace)
 	if (memfile_offset != (size_t) -1)
 	{
 		fseek(trace->memfile, memfile_offset, SEEK_SET);
-		fread_bytes = fread(insn->mem, sizeof(memfile_t), insn->num_mem, trace->memfile);
+		const size_t memfile_size = (trace->internal->version < 3) ? (sizeof(uint64_t) * 3) : sizeof(memfile_t);
+		fread_bytes = fread(insn->mem, memfile_size, insn->num_mem, trace->memfile);
+
+        // Trace memory broken checker
+        if (!(insn->mem[0].status==0 || insn->mem[0].status==1)) 
+            PEEKABOO_DIE("Abort! Broken memrefs_offsets. Remove memrefs_offsets in trace folder and try again.\n");
 	}
 
 	// read the regfile...
