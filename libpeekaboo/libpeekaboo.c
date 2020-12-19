@@ -449,7 +449,8 @@ peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace)
 	{
 		fseek(trace->memfile, memfile_offset, SEEK_SET);
 		const size_t memfile_size = (trace->internal->version < 3) ? (sizeof(uint64_t) * 3) : sizeof(memfile_t);
-		fread_bytes = fread(insn->mem, memfile_size, insn->num_mem, trace->memfile);
+		for (uint32_t idx = 0; idx<insn->num_mem; idx++)
+			fread_bytes = fread(&insn->mem[idx], memfile_size, 1, trace->memfile);
 
         // Trace memory broken checker
         if (!(insn->mem[0].status==0 || insn->mem[0].status==1)) 
