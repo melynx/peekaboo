@@ -450,11 +450,13 @@ peekaboo_insn_t *get_peekaboo_insn(const size_t id, peekaboo_trace_t *trace)
 		fseek(trace->memfile, memfile_offset, SEEK_SET);
 		const size_t memfile_size = (trace->internal->version < 3) ? (sizeof(uint64_t) * 3) : sizeof(memfile_t);
 		for (uint32_t idx = 0; idx<insn->num_mem; idx++)
+		{
 			fread_bytes = fread(&insn->mem[idx], memfile_size, 1, trace->memfile);
 
-        // Trace memory broken checker
-        if (!(insn->mem[0].status==0 || insn->mem[0].status==1)) 
-            PEEKABOO_DIE("Abort! Broken memrefs_offsets. Remove memrefs_offsets in trace folder and try again.\n");
+			// Trace memory broken checker
+        	if (!(insn->mem[idx].status==0 || insn->mem[idx].status==1)) 
+            	PEEKABOO_DIE("Abort! Broken memrefs_offsets. Remove memrefs_offsets in trace folder and try again.\n");
+		}
 	}
 
 	// read the regfile...
