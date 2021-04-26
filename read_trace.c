@@ -321,6 +321,7 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
 {
     // Print instruction index
     printf("[%lu] ", insn_idx);
+
     if (!print_memory && !print_register)
         if (target) 
         {
@@ -330,21 +331,25 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         else
             for (uint8_t idx = (uint8_t)log10f(insn_idx); idx < digits; idx++) printf(" ");
 
-    // Print instruction ea
-    printf("0x%"PRIx64"", insn->addr);
-        
-    // Print Rawbytes
-    printf(":\t ");
-
-    for (uint8_t rawbyte_idx = 0; rawbyte_idx < insn->size; rawbyte_idx++)
+    if (!print_syscall_info)
     {
-        if (insn->rawbytes[rawbyte_idx] < 16) printf("0");
-        printf("%"PRIx8" ", insn->rawbytes[rawbyte_idx]);
+        // Print instruction ea
+        printf("0x%"PRIx64"", insn->addr);
+            
+        // Print Rawbytes
+        printf(":\t ");
+
+        for (uint8_t rawbyte_idx = 0; rawbyte_idx < insn->size; rawbyte_idx++)
+        {
+            if (insn->rawbytes[rawbyte_idx] < 16) printf("0");
+            printf("%"PRIx8" ", insn->rawbytes[rawbyte_idx]);
+        }
+        
+        // Pretty print 
+        for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
+        printf("\t");
     }
 
-    // Pretty print 
-    for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
-    printf("\t");
 
     // Is this syscall?
     if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
@@ -368,28 +373,28 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
             // Syscall analysis failed.
             printf("Syscall analysis failed");
         }
+        printf("\n");
+        return;
     }
-    else
-    {
-        // Print disassemble for instructions using libopcodes
-        #ifdef ASM
-        {
-            // Disasmble the instruction
-            int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
-            if(rvalue != 0) PEEKABOO_DIE("Libopcodes disasm error!\n");
-        }
-        #else 
-        #ifdef ASM_CAPSTONE
-        {
-            cs_insn *capstone_insn;
-            size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
-            printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
-            cs_free(capstone_insn, count);
 
-        }
-        #endif //ASM_CAPSTONE
-        #endif // ASM
+    // Print disassemble for instructions using libopcodes
+    #ifdef ASM
+    {
+        // Disasmble the instruction
+        int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
+        if(rvalue != 0) PEEKABOO_DIE("Libopcodes disasm error!\n");
     }
+    #else 
+    #ifdef ASM_CAPSTONE
+    {
+        cs_insn *capstone_insn;
+        size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
+        printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
+        cs_free(capstone_insn, count);
+
+    }
+    #endif //ASM_CAPSTONE
+    #endif // ASM
     printf("\n");
 
     // Print memory ops

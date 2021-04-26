@@ -376,13 +376,16 @@ int amd64_syscall_pp(regfile_amd64_t *regfile, uint64_t rvalue, bool print_detai
 		return -1;
 	}
 	const struct_syscall_info *syscall_info = &syscall_infos[syscall_id];
-	printf("syscall %s (%lu)", syscall_info->sys_name, syscall_id);
-	
-	// Just print what syscall is this. Job done!
-	if (!print_details) return 0;
-	printf("\n\t%s(", syscall_info->sys_name);
 
+	if (!print_details)
+	{
+		// Just print what syscall is this. Job done!
+		printf("syscall %s (%lu)", syscall_info->sys_name, syscall_id);
+		return 0;
+	}
+	
 	// Print arguments and rvalue.
+	printf("%s(", syscall_info->sys_name);
 	assert(syscall_info->nargs <= sizeof(args_offset)/sizeof(uint64_t));
 	unsigned int arg_idx;
 	for (arg_idx = 0; arg_idx < syscall_info->nargs; arg_idx++)
