@@ -380,15 +380,16 @@ int amd64_syscall_pp(regfile_amd64_t *regfile, uint64_t rvalue, bool print_detai
 	
 	// Just print what syscall is this. Job done!
 	if (!print_details) return 0;
-	printf("\n");
+	printf("\n\t%s(", syscall_info->sys_name);
 
 	// Print arguments and rvalue.
 	assert(syscall_info->nargs <= sizeof(args_offset)/sizeof(uint64_t));
 	unsigned int arg_idx;
 	for (arg_idx = 0; arg_idx < syscall_info->nargs; arg_idx++)
 	{
-		printf("\targ[%u] = 0x%lx\n", arg_idx, ((uint64_t *)&regfile->gpr)[args_offset[arg_idx]]);
+		if (arg_idx != 0) printf(", ");
+		printf("0x%lx", ((uint64_t *)&regfile->gpr)[args_offset[arg_idx]]);
 	}
-	printf("\trvalue = 0x%lx", rvalue);
+	printf(") = 0x%lx", rvalue);
 	return 0;
 }
