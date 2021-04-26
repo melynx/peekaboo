@@ -316,7 +316,8 @@ uint64_t read_bytes, write_bytes;
 void print_peekaboo_insn(peekaboo_insn_t *insn, 
                          peekaboo_trace_t *peekaboo_trace_ptr, 
                          const size_t insn_idx,
-                         const bool target)
+                         const bool target,
+                         const bool print_syscall_info)
 {
     // Print instruction index
     printf("[%lu] ", insn_idx);
@@ -348,25 +349,34 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
         printf("\t");
 
-        // Disasmble the instruction
-        int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
-        if(rvalue != 0) PEEKABOO_DIE("Libopcodes disasm error!\n");
-
+        // Is this syscall?
         if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
         {
+            // Yes, syscall. Print it!
             size_t trace_length = get_num_insn(peekaboo_trace_ptr);
             size_t next_insn_idx = insn_idx + 1;
             const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
-            printf("%lu; rvalue=", regfile_ptr->gpr.reg_rax);
+            uint64_t rvalue;
             if (next_insn_idx > trace_length)
-                printf("NA");
+                rvalue = 0;
             else
             {
                 peekaboo_insn_t *next_insn = get_peekaboo_insn(next_insn_idx, peekaboo_trace_ptr);
                 regfile_ptr = (regfile_amd64_t *) next_insn->regfile;
-                printf("0x%lx", regfile_ptr->gpr.reg_rax);
+                rvalue = regfile_ptr->gpr.reg_rax;
                 free_peekaboo_insn(next_insn);
             }
+            if (0!=amd64_syscall_pp(insn->regfile, rvalue, print_syscall_info))
+            {
+                // Syscall analysis failed.
+                printf("Syscall analysis failed");
+            }
+        }
+        else
+        {
+            // Disasmble the instruction
+            int rvalue = disassemble_raw((enum ARCH)peekaboo_trace_ptr->internal->arch, false, insn->rawbytes, insn->size);
+            if(rvalue != 0) PEEKABOO_DIE("Libopcodes disasm error!\n");
         }
     }
     #endif
@@ -376,27 +386,36 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
         for (uint8_t idx = insn->size; idx < 8; idx++) printf("   ");
         printf("\t");
 
-        // Disasmble the instruction
-        cs_insn *capstone_insn;
-        size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
-        printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
-        cs_free(capstone_insn, count);
-
+        // Is this syscall?
         if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
         {
+            // Yes, syscall. Print it!
             size_t trace_length = get_num_insn(peekaboo_trace_ptr);
             size_t next_insn_idx = insn_idx + 1;
             const regfile_amd64_t *regfile_ptr = (regfile_amd64_t *) insn->regfile;
-            printf("%lu; rvalue=", regfile_ptr->gpr.reg_rax);
+            uint64_t rvalue;
             if (next_insn_idx > trace_length)
-                printf("NA");
+                rvalue = 0;
             else
             {
                 peekaboo_insn_t *next_insn = get_peekaboo_insn(next_insn_idx, peekaboo_trace_ptr);
                 regfile_ptr = (regfile_amd64_t *) next_insn->regfile;
-                printf("0x%lx", regfile_ptr->gpr.reg_rax);
+                rvalue = regfile_ptr->gpr.reg_rax;
                 free_peekaboo_insn(next_insn);
             }
+            if (0!=amd64_syscall_pp(insn->regfile, rvalue, print_syscall_info))
+            {
+                // Syscall analysis failed.
+                printf("Syscall analysis failed");
+            }
+        }
+        else
+        {
+            // Disasmble the instruction
+            cs_insn *capstone_insn;
+            size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
+            printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
+            cs_free(capstone_insn, count);
         }
     }
     #endif
@@ -434,14 +453,14 @@ uint64_t print_back(const int64_t unprinted_size,
         for (size_t prev_idx = ((int64_t)insn_idx - 5 > 0) ? (insn_idx - 5) : 1; prev_idx <= insn_idx; prev_idx++)
         {
             peekaboo_insn_t *prev_insn = get_peekaboo_insn(prev_idx, peekaboo_trace_ptr);
-            print_peekaboo_insn(prev_insn, peekaboo_trace_ptr, prev_idx, false);
+            print_peekaboo_insn(prev_insn, peekaboo_trace_ptr, prev_idx, false, false);
             free_peekaboo_insn(prev_insn);
         }
         return (insn_idx+1);
     }
     peekaboo_insn_t *insn = get_peekaboo_insn(insn_idx, peekaboo_trace_ptr);
     uint64_t rvalue = print_back(unprinted_size - insn->size, peekaboo_trace_ptr, insn_idx - 1);
-    print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, true);
+    print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, true, false);
     free_peekaboo_insn(insn);
     return rvalue;
 }
@@ -808,7 +827,7 @@ int main(int argc, char *argv[])
         {
             if (insn->size == 2 && insn->rawbytes[0]=='\x0f' && insn->rawbytes[1]=='\x05')
             {
-                print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false);
+                print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false, true);
             }
             free_peekaboo_insn(insn);
             continue;
@@ -847,7 +866,7 @@ int main(int argc, char *argv[])
         
 
         // Body of print
-        print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false);
+        print_peekaboo_insn(insn, peekaboo_trace_ptr, insn_idx, false, false);
 
         // Free instruction ptr
         free_peekaboo_insn(insn);

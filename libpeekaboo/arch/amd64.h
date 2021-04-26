@@ -30,7 +30,7 @@ typedef struct storage_option_amd64{
 	uint32_t has_fxsave;
 } storage_option_amd64_t;
 
-#include "../libpeekaboo.h"
+#include "../common.h"
 #include "amd64_conf.h"
 
 #define AMD64_NUM_SIMD_SLOTS 16

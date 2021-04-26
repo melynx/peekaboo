@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 
-#include "../libpeekaboo.h"
+#include "../common.h"
 
 #define AARCH64_NUM_SIMD_SLOTS 32
 

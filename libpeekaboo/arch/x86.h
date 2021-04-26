@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 
-#include "../libpeekaboo.h"
+#include "../common.h"
 
 /* Regfile */
 typedef struct {
