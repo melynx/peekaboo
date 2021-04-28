@@ -389,9 +389,15 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
     {
         cs_insn *capstone_insn;
         size_t count = cs_disasm(capstone_handler, insn->rawbytes, insn->size, insn->addr, 0, &capstone_insn);
-        printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
-        cs_free(capstone_insn, count);
-
+        if (count == 0)
+        {
+            printf("Capstone Error");
+        }
+        else
+        {
+            printf("%s\t%s", capstone_insn[0].mnemonic, capstone_insn[0].op_str);
+            cs_free(capstone_insn, count);
+        }
     }
     #endif //ASM_CAPSTONE
     #endif // ASM

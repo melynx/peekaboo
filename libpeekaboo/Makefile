@@ -27,7 +27,8 @@ SOLIB_COMPAT_SUFFIX=.$(LIB_MAJOR).$(LIB_MINOR)
 HAS_SOLIB_VERSION := $(IS_LINUX)
 
 # General variables
-OPT ?= -O3
+# OPT ?= -O3
+OPT ?= -DDEBUG -g -O0
 PIC_FLAG ?= -fPIC
 LDLIBS ?=
 LDFLAGS ?=

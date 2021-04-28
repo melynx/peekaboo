@@ -10,7 +10,8 @@ IS_DARWIN := $(shell echo "$(MACHINE)" | $(GREP) -i -c "Darwin")
 IS_LINUX := $(shell echo "$(MACHINE)" | $(GREP) -i -c "Linux")
 
 # General variables
-OPT ?= -O3
+#OPT ?= -O3
+OPT ?= -DDEBUG -g -O0
 WARNINGS = #-Wall -Wextra
 LDLIB_PEEKABOO ?= -lpeekaboo
 LDLIBS := $(LDLIB_PEEKABOO) 
