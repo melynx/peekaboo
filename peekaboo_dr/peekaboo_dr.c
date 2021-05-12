@@ -259,7 +259,7 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 
 	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
 	dr_get_mcontext(drcontext, &mc);
-	mem_addr = reg_get_value(reg_tmp, mc);
+	mem_addr = reg_get_value(reg_tmp, &mc);
 	dr_safe_read((void*)mem_addr, size, &mem_value, NULL);
 
 	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
