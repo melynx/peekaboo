@@ -245,7 +245,6 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 {
 	/* We need two scratch registers */
 	reg_id_t reg_ptr, reg_tmp;
-	uint64_t mem_value = 0x0, mem_addr;
 	if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_ptr) !=
 			DRREG_SUCCESS ||
 			drreg_reserve_register(drcontext, ilist, where, NULL, &reg_tmp) !=
@@ -257,14 +256,9 @@ static void instrument_mem(void *drcontext, instrlist_t *ilist, instr_t *where, 
 	uint32_t size = drutil_opnd_mem_size_in_bytes(ref, where);
 	drutil_insert_get_mem_addr(drcontext, ilist, where, ref, reg_tmp, reg_ptr);
 
-	dr_mcontext_t mc = {sizeof(mc), DR_MC_ALL};
-	dr_get_mcontext(drcontext, &mc);
-	mem_addr = reg_get_value(reg_tmp, &mc);
-	dr_safe_read((void*)mem_addr, size, &mem_value, NULL);
-
 	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(memfile_t, addr)); 
-	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(mem_value), OPSZ_8, offsetof(memfile_t, value));
+	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(0), OPSZ_8, offsetof(memfile_t, value));
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(memfile_t, size));
 	drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(write?1:0), OPSZ_4, offsetof(memfile_t, status));
 	

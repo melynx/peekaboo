@@ -414,7 +414,7 @@ void print_peekaboo_insn(peekaboo_insn_t *insn,
                 write_bytes+=insn->mem[mem_idx].size; 
             else
                 read_bytes+=insn->mem[mem_idx].size; 
-            printf("%d bytes @ 0x%lx: 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr, insn->mem[mem_idx].value);
+            printf("%d bytes @ 0x%lx\n", insn->mem[mem_idx].size, insn->mem[mem_idx].addr);
 
             // Memory trace broken checker
             if (!(insn->mem[mem_idx].status==0 || insn->mem[mem_idx].status==1)) 
