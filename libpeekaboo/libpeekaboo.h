@@ -20,6 +20,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/time.h>
+#include <time.h>
+
 
 #define MAX_PATH (256)
 #define LIBPEEKABOO_VER 004

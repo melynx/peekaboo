@@ -402,6 +402,12 @@ static void init_thread_in_process(void *drcontext)
 
 	data->num_refs = 0;
 	data->peek_trace = create_trace(buf);
+
+	if (data->peek_trace == NULL)
+	{
+		PEEKABOO_DIE("libpeekaboo: Unable to create directory %s.\n", buf);
+	}
+
 	data->peek_trace->bytes_map = bytes_map_file;
 	write_metadata(data->peek_trace, arch, LIBPEEKABOO_VER);
 	
@@ -423,10 +429,25 @@ static void event_thread_init(void *drcontext)
 
 	char name[256];
 	snprintf(name, 256, "%s-%d", dr_get_application_name(), root_pid);
-	if (create_folder(name, trace_dir, 256))	PEEKABOO_DIE("Peekaboo: Unable to create directory %s.\n", name);
-	//char *resolved_name = realpath(name, trace_dir);
-	//fprintf(stderr, "I am here~ %s ; %s; \n", trace_dir, name);
-
+	if (create_folder(name, trace_dir, 256))	
+	{
+		// Fail to create trace directory. Try again with timestamp
+		time_t t = time(NULL);
+		struct tm tm = *localtime(&t);
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+		char name_with_timestamp[256];
+		sprintf(name_with_timestamp, "%s-%d_%02d_%02d-%02d_%02d_%02d-%d", name, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, now.tv_nsec%1000000);
+		if (create_folder(name_with_timestamp, trace_dir, 256))
+		{
+			PEEKABOO_DIE("libpeekaboo: Unable to create directory %s.\n", name_with_timestamp);
+		}
+		else
+		{
+			// Success!
+			strncpy(name, name_with_timestamp, 256);
+		}
+	}
 
 	dr_mutex_lock(mutex);
 	create_trace_file(trace_dir, "insn.bytemap", 256, &bytes_map_file);
