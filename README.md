@@ -12,9 +12,9 @@ from other tools to peekaboo format.
 
 ## Architectures
 ### Currently Support
-AMD64, AARCH64, X86
-### Planned Support
-AARCH32
+AMD64, X86
+### Going to Support
+AARCH64, AARCH32
 
 ## C/C++ library: libpeekaboo
 ### How to build
